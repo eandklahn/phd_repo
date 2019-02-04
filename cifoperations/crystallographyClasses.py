@@ -108,10 +108,28 @@ class crystalStructure:
         self.G_ = np.linalg.inv(self.G)
         self.V_ = 1/self.V
         
+        # r, q and p as they are defined in the text in my bachelor project
+        r = np.cos(self.beta)
         
+        q = ((np.cos(self.gamma)-np.cos(self.beta)*np.cos(self.alpha))/(np.sin(self.alpha)))
         
+        p = np.sqrt(1-(q**2+r**2))
         
+        # Matrix for basis transformation from orthonormal CCSL basis to crystallographic basis
+        # This is the basis transformation matrix (called 'M' in Giacovazzo) from the basis ijk to the basis abc
+        self.ABC_Mbt_IJK = np.mat([[self.a*p, self.a*q,                  self.a*r                 ],
+                                   [0,        self.b*np.sin(self.alpha), self.b*np.cos(self.alpha)],
+                                   [0,        0,                         self.c                   ]])
         
+        # Matrix for coordinate transformation from orthonormal CCSL basis to crystallographic basis
+        self.ABC_Mct_IJK = np.linalg.inv(np.transpose(self.ABC_Mbt_IJK))
+        
+        # Matrix for basis transformation from crystallographic basis to orthonormal CCSL basis
+        self.IJK_Mbt_ABC = np.linalg.inv(self.ABC_Mbt_IJK)
+        
+        # Matrix for coordinate transformation from crystallographic basis to orthonormal CCSL basis
+        self.IJK_Mct_ABC = np.linalg.inv(np.transpose(self.IJK_Mbt_ABC))
+
     def _read_CIF(self):
         
         if self.cifFile is not None:
