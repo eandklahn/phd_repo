@@ -167,20 +167,3 @@ def readCif2Structure(filename, blockname):
             structure[lbl[i]]['dU'] = dU                     
             
     return structure, SG, P
-
-data = readCHILSQ_FRs('chilsq1.lis')
-data = data[list(data.keys())[0]]
-
-filename = 'Dy2_neutronstructure.cif'
-blockname = '15k_total'
-structure, SG, P = readCif2Structure(filename, blockname)
-Dy_DBM = crystallography.crystalStructure(params=P)
-
-for n in range(len(data['h'])):
-    h            = data['h'][n]
-    k            = data['k'][n]
-    l            = data['l'][n]
-    Fnucl_CHILSQ = data['Fnucl'][n]
-    Fnucl_script = _calculate_Fnucl(h,k,l,structure,SG,Dy_DBM)
-    
-    print('{:6d} {:6d} {:6d} {:>10.4f} {:>10.4f}'.format(int(h),int(k),int(l), Fnucl_CHILSQ, Fnucl_script.real))

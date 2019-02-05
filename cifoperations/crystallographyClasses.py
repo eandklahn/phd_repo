@@ -109,16 +109,16 @@ class crystalStructure:
         self.V_ = 1/self.V
         
         # r, q and p as they are defined in the text in my bachelor project
-        r = np.cos(self.beta)
+        r = np.cos(beta)
         
-        q = ((np.cos(self.gamma)-np.cos(self.beta)*np.cos(self.alpha))/(np.sin(self.alpha)))
+        q = ((np.cos(gamma)-np.cos(beta)*np.cos(alpha))/(np.sin(alpha)))
         
         p = np.sqrt(1-(q**2+r**2))
         
         # Matrix for basis transformation from orthonormal CCSL basis to crystallographic basis
         # This is the basis transformation matrix (called 'M' in Giacovazzo) from the basis ijk to the basis abc
         self.ABC_Mbt_IJK = np.mat([[self.a*p, self.a*q,                  self.a*r                 ],
-                                   [0,        self.b*np.sin(self.alpha), self.b*np.cos(self.alpha)],
+                                   [0,        self.b*np.sin(alpha),      self.b*np.cos(alpha)     ],
                                    [0,        0,                         self.c                   ]])
         
         # Matrix for coordinate transformation from orthonormal CCSL basis to crystallographic basis
@@ -128,7 +128,7 @@ class crystalStructure:
         self.IJK_Mbt_ABC = np.linalg.inv(self.ABC_Mbt_IJK)
         
         # Matrix for coordinate transformation from crystallographic basis to orthonormal CCSL basis
-        self.IJK_Mct_ABC = np.linalg.inv(np.transpose(self.IJK_Mbt_ABC))
+        self.IJK_Mct_ABC = np.transpose(self.ABC_Mbt_IJK)
 
     def _read_CIF(self):
         
@@ -137,6 +137,7 @@ class crystalStructure:
             cf = CifFile.ReadCif(self.cifFile)
             data = cf[self.block]
             self.cifData = data
+            _look_for_magnetic_atoms = True
             
             # Crystallographic information
             self.SG = data['_space_group_name_H-M_alt']
@@ -166,14 +167,18 @@ class crystalStructure:
             U13      = data['_atom_site_aniso_U_13']
             U12      = data['_atom_site_aniso_U_12']
             
-            _chi_atom_lbl = data['_atom_site_moment.label']
-            _chi_atom_11 = data['_atom_site_moment.chi_11']
-            _chi_atom_22 = data['_atom_site_moment.chi_22']
-            _chi_atom_33 = data['_atom_site_moment.chi_33']
-            _chi_atom_23 = data['_atom_site_moment.chi_23']
-            _chi_atom_13 = data['_atom_site_moment.chi_13']
-            _chi_atom_12 = data['_atom_site_moment.chi_12']
-            _chi_atom_determination = data['_atom_site_moment.determination']
+            
+            try:
+                _chi_atom_lbl = data['_atom_site_moment.label']
+                _chi_atom_11 = data['_atom_site_moment.chi_11']
+                _chi_atom_22 = data['_atom_site_moment.chi_22']
+                _chi_atom_33 = data['_atom_site_moment.chi_33']
+                _chi_atom_23 = data['_atom_site_moment.chi_23']
+                _chi_atom_13 = data['_atom_site_moment.chi_13']
+                _chi_atom_12 = data['_atom_site_moment.chi_12']
+                _chi_atom_determination = data['_atom_site_moment.determination']
+            except KeyError:
+                _look_for_magnetic_atoms = False
             
             for i in range(len(labels)):
                 xi, dxi = _split_val_sigma(x[i])
@@ -202,20 +207,21 @@ class crystalStructure:
                 self.atoms.append(Atom(lbl, X, dX, Utype, U, dU))
                 self.atomdict[lbl] = i
             
-            for atom in self.atoms:
-                if atom.lbl in _chi_atom_lbl:
-                    atom._is_magnetic = True
-                    print('Setting {} to magnetic. Remember to give it a charge!'.format(atom.lbl))
-                    index = _chi_atom_lbl.index(atom.lbl)
-                    atom._magX, atom._dmagX = np.zeros(6), np.zeros(6)
-                    atom._magX[0], atom._dmagX[0] = _split_val_sigma(_chi_atom_11[index])
-                    atom._magX[1], atom._dmagX[1] = _split_val_sigma(_chi_atom_22[index])
-                    atom._magX[2], atom._dmagX[2] = _split_val_sigma(_chi_atom_33[index])
-                    atom._magX[3], atom._dmagX[3] = _split_val_sigma(_chi_atom_23[index])
-                    atom._magX[4], atom._dmagX[4] = _split_val_sigma(_chi_atom_13[index])
-                    atom._magX[5], atom._dmagX[5] = _split_val_sigma(_chi_atom_12[index])
-                    atom._magX_determined_by = _chi_atom_determination[index]
-                    
+            if _look_for_magnetic_atoms:
+                for atom in self.atoms:
+                    if atom.lbl in _chi_atom_lbl:
+                        atom._is_magnetic = True
+                        print('Setting {} to magnetic. Remember to give it a charge!'.format(atom.lbl))
+                        index = _chi_atom_lbl.index(atom.lbl)
+                        atom._magX, atom._dmagX = np.zeros(6), np.zeros(6)
+                        atom._magX[0], atom._dmagX[0] = _split_val_sigma(_chi_atom_11[index])
+                        atom._magX[1], atom._dmagX[1] = _split_val_sigma(_chi_atom_22[index])
+                        atom._magX[2], atom._dmagX[2] = _split_val_sigma(_chi_atom_33[index])
+                        atom._magX[3], atom._dmagX[3] = _split_val_sigma(_chi_atom_23[index])
+                        atom._magX[4], atom._dmagX[4] = _split_val_sigma(_chi_atom_13[index])
+                        atom._magX[5], atom._dmagX[5] = _split_val_sigma(_chi_atom_12[index])
+                        atom._magX_determined_by = _chi_atom_determination[index]
+                        
         else:
             print('Crystal structure initialized. No CIF file given')
                         
