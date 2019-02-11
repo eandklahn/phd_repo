@@ -346,14 +346,8 @@ class crystalStructure:
                     continue
                 else:
                     visited.append(tuple(Xc%1))
-                
-                    f = b*np.exp(-2j*np.pi*np.dot(H,Xc))
-                    
-                    # The U-value(s) and Utype are passed to a different function that
-                    # calculates the Debye-Waller factor for the given atom
                     Wj = self._calculate_Wj(atom.U, atom.Utype, symmOp['R'], H)
-                    
-                    F += f*np.exp(-Wj)
+                    F += b*np.exp(-2j*np.pi*np.dot(H,Xc))*np.exp(-Wj)
                 
         return F
     
@@ -381,7 +375,7 @@ class crystalStructure:
                 
                 s = 1/(2*self._calculate_d_spacing(H))
                 # This is currently for Co2 in an octahedral environment. A general way has to be established.
-                f = ff.magF_(atom.ion, 1, 3/2, 5/2, s)
+                f = ff.magF_(atom.ion, 1, 3/2, 5/2, s, type='j0')
                 chi = np.array([[atom._magX[0], atom._magX[5], atom._magX[4]],
                                 [atom._magX[5], atom._magX[1], atom._magX[3]],
                                 [atom._magX[4], atom._magX[3], atom._magX[2]]])
@@ -394,7 +388,8 @@ class crystalStructure:
                     else:
                         visited.append(tuple(Xc%1))
                         m = np.matmul(np.matmul(np.matmul(R, chi), np.linalg.inv(R)), H_abc)
-                        F += f*m*np.exp(-2j*np.pi*np.dot(H,Xc))
+                        Wj = self._calculate_Wj(atom.U, atom.Utype, symmOp['R'], H)
+                        F += f*m*np.exp(-2j*np.pi*np.dot(H,Xc))*np.exp(-Wj)
     
         return F
                         
