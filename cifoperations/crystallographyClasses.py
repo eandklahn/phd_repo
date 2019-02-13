@@ -78,7 +78,7 @@ class crystalStructure:
         self.cifData = None
         
         # Cell parameters in direct space
-        self.P = P
+        self.P = 0
         self.a, self.da         = 0,0
         self.b, self.db         = 0,0
         self.c, self.dc         = 0,0
@@ -87,8 +87,13 @@ class crystalStructure:
         self.gamma, self.dgamma = 0,0
         
         # Calling functions to initialize
-        self._read_CIF()
-        self.equivPositions = CD.spaceGroups[self.SG]
+        if cifFile is not None:
+            self._read_CIF()
+            self.equivPositions = CD.spaceGroups[self.SG]
+        elif P is not None:
+            self.a, self.b, self.c = P[:3]
+            self.alpha, self.beta, self.gamma = P[3:]
+            self.equivPositions = CD.spaceGroups[SG]
         
         # Cell information in direct space
         alpha, beta, gamma = np.radians(self.alpha), np.radians(self.beta), np.radians(self.gamma)
@@ -211,7 +216,6 @@ class crystalStructure:
                 for atom in self.atoms:
                     if atom.lbl in _chi_atom_lbl:
                         atom._is_magnetic = True
-                        print('Setting {} to magnetic. Remember to give it a charge!'.format(atom.lbl))
                         index = _chi_atom_lbl.index(atom.lbl)
                         atom._magX, atom._dmagX = np.zeros(6), np.zeros(6)
                         atom._magX[0], atom._dmagX[0] = _split_val_sigma(_chi_atom_11[index])
@@ -357,7 +361,7 @@ class crystalStructure:
         
         Inputs
         hkl: reciprocal lattice point for which to calculate the magnetic structure factor
-        H_abc: magnetic field vector in the reciprocal lattice system
+        H_abc: magnetic field vector in the direct lattice system
         
         Outputs
         F: the magnetic structure factor as a vector in the abc coordinate system
