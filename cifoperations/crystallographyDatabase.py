@@ -1,8 +1,24 @@
-import numpy as np
+"""crystallographyDatabase
 
+Intended to contain importable variables for other modules
+
+spaceGroups (dictionary): Container for symmetry information for various space groups.
+                            NOTE: Space groups will be added as they are needed
+    key (string) : space group name in CIF '_space_group_name_H-M_alt'-notation
+    val (list) : elements are symmetry operators given as dictionaries
+        'R' (3x3 array) : rotational part of the operator
+        't' (3x1 array) : translational part of the operator
+                          
+atomInfo (dictionary): Container for various element-specific values
+                            NOTE: Elements will be added as they are needed
+                            NOTE: No current notation for isotopes
+    key (string) : element symbol
+    val (varies) : dictionary containing implemented elements
+        'atom_no' (integer) : atomic number, number of protons in nucleus
+        'b_neut' (float) : neutron scattering length for the given nucleus in 10^-14 m
 """
-HERE WILL FOLLOW AN EXPLANATION OF WHAT IS IN THE MODULE
-"""
+
+import numpy as np
 
 spaceGroups = {
 
@@ -11,7 +27,7 @@ spaceGroups = {
                               {'R': np.array([[-1, 0, 0], [ 0,-1, 0], [ 0, 0,-1]]), 't': np.array([0  ,0  , 0  ])},
                              ]                                          
                              ,
-               'C 2/c'     : [
+               'C 2/c nf'     : [ # NOTE: This has not been finished, hence the ' nf' in the space group name
                               {'R': np.array([[0],[0],[0]]), 't': np.array([0])}
                              ]
                              ,
@@ -22,7 +38,7 @@ spaceGroups = {
                               {'R': np.array([[ 1, 0, 0], [ 0,-1, 0], [ 0, 0, 1]]), 't': np.array([0  ,0.5, 0.5])}
                              ]
                              ,
-               'P 42/n a'  : [                                          
+               'P 42/n a'  : [ # NOTE: Not used at the moment. Looking up 'P42/n' will give the space group below             
                               {'R': np.array([[ 1, 0, 0], [ 0, 1, 0], [ 0, 0, 1]]), 't': np.array([0, 0, 0])},
                               {'R': np.array([[-1, 0, 0], [ 0,-1, 0], [ 0, 0, 1]]), 't': np.array([0, 0, 0])},
                               {'R': np.array([[ 0,-1, 0], [ 1, 0, 0], [ 0, 0, 1]]), 't': np.array([1/2, 1/2, 1/2])},
@@ -45,9 +61,6 @@ spaceGroups = {
                              ]
 }
 
-"""
-b_neut: neutron scattering length for the given nucleus. Unit: 10**-14 m
-"""
 atomInfo = {'H' : {'atom_no': 1,  'b_neut': -0.374},
             'C' : {'atom_no': 6,  'b_neut': 0.665},
             'N' : {'atom_no': 7,  'b_neut': 0.936},

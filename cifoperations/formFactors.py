@@ -2,22 +2,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 from cifoperations import mj0, mj2, mj4, mj6
 
-def magF_(ion, L, S, J, s, type='dipole'):
+def magF_(ion, s, L=None, S=None, J=None, type='j0'):
     """
     Calculates the magnetic form factor of 'ion'
     s: sinT/lambda
     """
     
-    j0 = _calculate_formfactor(ion, s, type='j0')
-    g = landeG(L,S,J)
+    j0 = _calculate_exponential_approx(ion, s, type='j0')
     
     f = 0
-    if type == 'dipole':
-        j2 = _calculate_formfactor(ion, s, type='j2')
+    if type == 'j0':
+        return j0
+    elif type == 'dipole':
+        g = landeG(L,S,J)
+        j2 = _calculate_exponential_approx(ion, s, type='j2')
         f = j0+(2-g)/g*j2
         return f
-    elif type == 'j0':
-        return j0
     else:
         return None
 
@@ -36,7 +36,7 @@ def _plot_formfactor(ion, type, Sstart, Send):
     plt.plot(s,f)
     plt.show()
     
-def _calculate_formfactor(ion, s, type='elec'):
+def _calculate_exponential_approx(ion, s, type='elec'):
         
         dict = {}
         if type == 'elec':

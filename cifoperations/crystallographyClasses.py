@@ -1,19 +1,22 @@
 import CifFile
 import numpy as np
-from cifoperations import formFactors as ff
-from cifoperations import crystallographyDatabase as CD
-from calculateCHILSQRs import readCHILSQ_FRs
+
+import formFactors as ff
+import crystallographyDatabase as CD
 
 def _split_val_sigma(val):
     """Takes a string of the format '#1(#2)' and returns a tuple of two floats, where
     the first is #1 and the second is #2"""
+    
     try:
         val, sig = val.split('(')[0], val.split('(')[1].split(')')[0]
         decimal_count = len(val.split('.')[1])
         sig = '0.'+'0'*(decimal_count-len(sig))+sig
+    
     except IndexError:
-        """Because sometimes there is no error on the value,
-        so asking for element 1 after splitting gives an IndexError"""
+        # Because sometimes there is no error on the value,
+        # so asking for element 1 after splitting gives an IndexError
+    
         sig = 0
 
     return (float(val), float(sig))
@@ -22,15 +25,31 @@ class Atom:
 
     def __init__(self, label, X, dX, Utype, U, dU, element=None):
         """
-        Initializes an atom in a structure.
-        label: the label that the atom has in a structure.
-        element: the element of the atom. This will be read directly from the label and contains all
-                characters in the label that are not integers.
-        X: the position of the element. array
-        dX: the uncertainty on the position of the element. array
-        Utype: the type of the vibrational parameters that are given. string
-        U: values for the vibrational parameters. These are saved according to a specification in Utype. array/float
-        dU: uncertainties on the vibrational parameters. array/float
+        Class used to represent an atom in a crystal structure
+        
+        ...
+        
+        Attributes
+        ----------
+        label : string
+            the label that the atom has in a structure.
+        element : string
+            the element of the atom
+        X : array
+            position of atom in unit cell in fractional coordinates 
+        dX : array
+            sigmas on the atom position
+        Utype : string
+            whether vibrations are given as Uiso or Uani
+        U : array/float
+            values for the vibrational parameters. Saved according to Utype
+        dU : array/float
+            sigmas on vibrational parameters
+        
+        Methods
+        ----------
+        _get_element
+            Reads the element of the atom from the given label
         """
         
         self.lbl = label
@@ -42,6 +61,12 @@ class Atom:
         self.dU = dU
         self._is_magnetic = False
         self.charge = 0
+        self.ion = ''
+        self._type_magnetic_form = 'j0'
+        self._angular_L = 0
+        self._angular_S = 0
+        self._angular_J = 0
+        
     
     def _get_element(self):
 
@@ -57,7 +82,7 @@ class Atom:
             type = type[:-1]
         
         return type
-    
+        
 class crystalStructure:
 
     def __init__(self, cifFile=None, blockname=None, P=None, SG=None):
@@ -355,19 +380,23 @@ class crystalStructure:
                 
         return F
     
-    def _calculate_magnetic_F(self, h, k, l, H_abc):
+    def _calculate_magnetic_F(self, h, k, l, Hijk):
         """
-        Calculates the magnetic structure factor as a vector in the abc coordinate system.
+        Calculates the magnetic structure factor as a vector in the ijk coordinate system.
+        This assumes that the susceptibility tensors of atoms are given in that same coordinate system
         
         Inputs
         hkl: reciprocal lattice point for which to calculate the magnetic structure factor
-        H_abc: magnetic field vector in the direct lattice system
+        Hijk: magnetic field vector in the CCSL orthonormal coordinate system
         
         Outputs
-        F: the magnetic structure factor as a vector in the abc coordinate system
+        F: the magnetic structure factor as a vector in the ijk coordinate system with unit of 10^-14 m
         """
         
-        
+        # This is the conversion factor used to convert Bohr magnetons to a scattering length
+        # Still need to figure out the correct source for this conversion factor
+        _conversion_factor = 0.539/2
+
         F = 0
         H = np.array([h,k,l])
         
@@ -378,8 +407,15 @@ class crystalStructure:
                 visited = []
                 
                 s = 1/(2*self._calculate_d_spacing(H))
-                # This is currently for Co2 in an octahedral environment. A general way has to be established.
-                f = ff.magF_(atom.ion, 1, 3/2, 5/2, s, type='j0')
+                
+                _type_formfactor = atom._type_magnetic_form
+                
+                f = 0
+                if _type_formfactor is 'j0':
+                    f = ff.magF_(atom.ion, s, L=atom._angular_L, S=atom._angular_S, J=atom._angular_J)
+                elif _type_formfactor is 'dipole':
+                    f = ff.magF_(atom.ion, s, L=atom._angular_L, S=atom._angular_S, J=atom._angular_J, type='dipole')
+                    
                 chi = np.array([[atom._magX[0], atom._magX[5], atom._magX[4]],
                                 [atom._magX[5], atom._magX[1], atom._magX[3]],
                                 [atom._magX[4], atom._magX[3], atom._magX[2]]])
@@ -391,12 +427,32 @@ class crystalStructure:
                         continue
                     else:
                         visited.append(tuple(Xc%1))
-                        m = np.matmul(np.matmul(np.matmul(R, chi), np.linalg.inv(R)), H_abc)
+                        m = np.matmul(np.matmul(np.matmul(R, chi), np.linalg.inv(R)), Hijk)
                         Wj = self._calculate_Wj(atom.U, atom.Utype, symmOp['R'], H)
                         F += f*m*np.exp(-2j*np.pi*np.dot(H,Xc))*np.exp(-Wj)
+        
+        F *= _conversion_factor
     
         return F
-                        
+    
+    def _calculate_Fm_perp_Q(self, h, k, l, Hijk):
+        """
+        Calculates the component of Fm that is perpendicular to the scattering vector
+        """
+        Q = np.array([[h],[k],[l]])
+        
+        Q_ijk = np.matmul(self.IJK_Mct_ABC,np.matmul(self.G_, Q))
+        Fm_ijk = self._calculate_magnetic_F(h,k,l, Hijk)
+        
+        Fm_para_q_ijk_num = np.dot(np.transpose(Fm_ijk),Q_ijk)
+        Fm_para_q_ijk_den = np.dot(np.transpose(Q_ijk), Q_ijk)
+        
+        Fm_para_q_ijk = (Fm_para_q_ijk_num/Fm_para_q_ijk_den)[0,0]*Q_ijk
+        
+        Fm_perp_q_ijk = Fm_ijk - Fm_para_q_ijk
+        
+        return Fm_perp_q_ijk
+    
     def _cellParams(self):
         """
         Reports on the cell parameters of the structure
@@ -415,6 +471,8 @@ class crystalStructure:
 
 
 if __name__ == '__main__':
+
+    from calculateCHILSQRs import readCHILSQ_FRs
 
     filename = '20K.cif'
     block = 'phys_i13'

@@ -1,6 +1,5 @@
 from cifoperations import crystallographyClasses as cc
 import os
-import sys
 import argparse
 import numpy as np
 from CifFile import ReadCif
