@@ -20,11 +20,6 @@ atomInfo (dictionary): Container for various element-specific values
 
 import numpy as np
 
-
-# NOTE: After 19/2/2019, this dictionary is not needed, as the module
-# "symmetry" has been added, which makes it possible to read symmetry
-# information directly from the strings of the cif instead of having
-# to match it from this external dictionary
 spaceGroups = {
 
                'P -1'      : [

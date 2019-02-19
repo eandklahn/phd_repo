@@ -1,8 +1,8 @@
 import CifFile
 import numpy as np
-from cifoperations import formFactors as ff
-from cifoperations import crystallographyDatabase as CD
-from cifoperations.symmetry import _read_symmop
+
+import formFactors as ff
+import crystallographyDatabase as CD
 
 def _split_val_sigma(val):
     """Takes a string of the format '#1(#2)' and returns a tuple of two floats, where
@@ -97,7 +97,7 @@ class crystalStructure:
         self.atoms = []
         self.atomdict = {}
         self.SG = SG
-        self.equivPositions = []
+        self.equivPositions = 0
         self.cifFile = cifFile
         self.block = blockname
         self.cifData = None
@@ -114,6 +114,7 @@ class crystalStructure:
         # Calling functions to initialize
         if cifFile is not None:
             self._read_CIF()
+            self.equivPositions = CD.spaceGroups[self.SG]
         elif P is not None:
             self.a, self.b, self.c = P[:3]
             self.alpha, self.beta, self.gamma = P[3:]
@@ -179,11 +180,6 @@ class crystalStructure:
             self.alpha, self.dalpha = _split_val_sigma(data['_cell_angle_alpha'])
             self.beta, self.dbeta   = _split_val_sigma(data['_cell_angle_beta'])
             self.gamma, self.dgamma = _split_val_sigma(data['_cell_angle_gamma'])
-            
-            # Read symmetry information
-            symms = data['_space_group_symop_operation_xyz']
-            for s in symms:
-                self.equivPositions.append(_read_symmop(s))
             
             # Read atoms in the CIF
             labels = data['_atom_site_label']
@@ -371,7 +367,7 @@ class crystalStructure:
             
             visited = []
             
-            for symmOp in self.equivPositions:
+            for symmOp in CD.spaceGroups[self.SG]:
                 
                 R, t = symmOp['R'], symmOp['t']
                 Xc = np.matmul(R, atom.X) + t
@@ -424,7 +420,7 @@ class crystalStructure:
                                 [atom._magX[5], atom._magX[1], atom._magX[3]],
                                 [atom._magX[4], atom._magX[3], atom._magX[2]]])
                     
-                for symmOp in self.equivPositions:
+                for symmOp in CD.spaceGroups[self.SG]:
                     R, t = symmOp['R'], symmOp['t']
                     Xc = np.matmul(R, atom.X) + t
                     if tuple(Xc%1) in visited:
