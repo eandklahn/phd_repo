@@ -3,6 +3,7 @@ import numpy as np
 from cifoperations import formFactors as ff
 from cifoperations import crystallographyDatabase as CD
 from cifoperations.symmetry import _read_symmop
+from cifoperations import mj0, mj2, mj4, mj4
 
 def _split_val_sigma(val):
     """Takes a string of the format '#1(#2)' and returns a tuple of two floats, where
@@ -23,7 +24,7 @@ def _split_val_sigma(val):
         
 class Atom:
 
-    def __init__(self, label, X, dX, Utype, U, dU, element=None):
+    def __init__(self, label, X, dX, Utype, U, dU, occ, docc, element=None):
         """
         Class used to represent an atom in a crystal structure
         
@@ -59,6 +60,10 @@ class Atom:
         self.Utype = Utype
         self.U = U
         self.dU = dU
+        self.occ = occ
+        self.docc = docc
+        
+        # Magnetic stuff
         self._is_magnetic = False
         self.charge = 0
         self.ion = ''
@@ -69,19 +74,17 @@ class Atom:
         
     
     def _get_element(self):
-
-        type = ''
-        for c in self.lbl:
-            try:
-                int(c)
-            except ValueError:
-                type += c
-
-        if type[-1] == 'A' or type[-1] == 'B' or type[-1] == 'C' and len(type)>1:
-            
-            type = type[:-1]
-        
-        return type
+        s = self.lbl
+        e = ''
+        n = 0
+        while True:
+            c = s[n]
+            if c.isalpha():
+                e+=c
+                n+=1
+            else:
+                break
+        return e
         
 class crystalStructure:
 
@@ -98,6 +101,7 @@ class crystalStructure:
         self.atomdict = {}
         self.SG = SG
         self.equivPositions = []
+        self.symmetrystrings = []
         self.cifFile = cifFile
         self.block = blockname
         self.cifData = None
@@ -183,6 +187,7 @@ class crystalStructure:
             # Read symmetry information
             symms = data['_space_group_symop_operation_xyz']
             for s in symms:
+                self.symmetrystrings.append(s)
                 self.equivPositions.append(_read_symmop(s))
             
             # Read atoms in the CIF
@@ -192,6 +197,7 @@ class crystalStructure:
             z      = data['_atom_site_fract_z']
             U_type = data['_atom_site_adp_type']
             U_iso  = data['_atom_site_U_iso_or_equiv']
+            Occ    = data['_atom_site_occupancy']
             
             Uatomlbl = data['_atom_site_aniso_label']
             U11      = data['_atom_site_aniso_U_11']
@@ -224,6 +230,7 @@ class crystalStructure:
                 X  = np.array([xi, yi, zi])
                 dX  = np.array([dxi, dyi, dzi])
                 Utype = U_type[i]
+                occ, docc = _split_val_sigma(Occ[i])
                 
                 # Reading the vibrational parameters of the i'th atom based on the Utype
                 if Utype == 'Uiso':
@@ -238,7 +245,9 @@ class crystalStructure:
                     U[4], dU[4] = _split_val_sigma(U13[Uani_index])
                     U[5], dU[5] = _split_val_sigma(U12[Uani_index])
                 
-                self.atoms.append(Atom(lbl, X, dX, Utype, U, dU))
+                _current_atom = Atom(lbl, X, dX, Utype, U, dU, occ, docc)
+                setattr(self, lbl, _current_atom)
+                self.atoms.append(_current_atom)
                 self.atomdict[lbl] = i
             
             if _look_for_magnetic_atoms:
@@ -257,7 +266,99 @@ class crystalStructure:
                         
         else:
             print('Crystal structure initialized. No CIF file given')
-                        
+    
+    def _write_to_cry(self, _cryname):
+        
+        Acards = []
+        Ccards = ['C {:<10.5f}{:<10.5f}{:<10.5f}{:<10.5f}{:<10.5f}{:<10.5f}\n'.format(
+                   self.a, self.b, self.c, self.alpha, self.beta, self.gamma)]
+        Dcards = []
+        Fcards = []
+        Icards = []
+        Lcards = []
+        Qcards = []
+        Scards = []
+        Tcards = []
+        
+        Dcards.extend(['D WVLN 1.4\n',
+                       'D GEOM 8\n',
+                       'D L/R 1\n'])
+        
+        Icards.extend(['I DTYP 1\n'])
+        
+        Lcards.extend(['L SCAL 1.000 1.000 1.000 1.000\n',
+                       'L FIX SCAL 1\n',
+                       'L MODE 5 REFI 5 WGHT 2\n'])
+        
+        for s in self.symmetrystrings:
+            Scards.append('S '+s+'\n')
+        
+        _elements_present = []
+        
+        for atom in self.atoms:
+            if atom.element not in _elements_present:
+                _elements_present.append(atom.element)
+            
+            float_repr = '{:>10.6f}'
+            
+            # Make the A-card
+            Acardstring = ('A {: <6s}'+3*float_repr).format(atom.lbl, *(atom.X%1))
+            
+            if atom.Utype == 'Uiso':
+                # In this case, the U-value will fit on the A-card
+                Acardstring += float_repr.format(atom.U)
+            else:
+                # In this case, a separate T-card has to be made
+                Tcardstring = ('T {: <6s}  3  '+6*float_repr).format(atom.lbl, *atom.U)
+                Tcardstring += '\n'
+                Tcards.append(Tcardstring)
+            
+            if atom.occ != 1:
+                sfacstring = '{:>4s}'.format(atom.element)
+                occstring = ' {}'.format(atom.occ)
+                Acardstring = Acardstring + sfacstring + occstring + '\n'
+            else:
+                Acardstring += '\n'
+                
+            if atom._is_magnetic:
+                _lbl = atom.lbl
+                
+                # For now assuming that the magnetic form factor is just the j0-Bessel function
+                _exp_approx = mj0.mj0[atom.ion]
+                Fcards.append(('F {}m 2'+'{:>8.4f}'*7+'\n').format(atom.element,
+                                                              _exp_approx['a'][0],
+                                                              _exp_approx['b'][0],
+                                                              _exp_approx['a'][1],
+                                                              _exp_approx['b'][1],
+                                                              _exp_approx['a'][2],
+                                                              _exp_approx['b'][2],
+                                                              _exp_approx['c']))
+                
+                Qcards = ['Q {}m FORM {}\n'.format(atom.element, _lbl),
+                          'Q {} CHI 0.2 0.2 0.2 0.0 0.0 0.0\n'.format(_lbl)] + Qcards
+                Lcards = ['L FIX {} CH11\n'.format(_lbl),
+                          'L FIX {} CH22\n'.format(_lbl),
+                          'L FIX {} CH33\n'.format(_lbl),
+                          'L FIX {} CH23\n'.format(_lbl),
+                          'L FIX {} CH31\n'.format(_lbl),
+                          'L FIX {} CH12\n'.format(_lbl),
+                          'L RELA 1 1 {0} CH11 1 {0} CH33\n'.format(_lbl),
+                          'L RELA 1 1 {0} CH11 1 {0} CH22\n'.format(_lbl)] + Lcards
+                
+            Acards.append(Acardstring)
+        
+        for e in _elements_present:
+            Fcards.append('F {:<9s}1 {}\n'.format(e, CD.atomInfo[e]['b_neut']))
+        
+        Qcards = ['Q STYP PARA\n'] + Qcards
+        
+        cards = Ccards+Scards+Icards+Qcards+Lcards+Dcards+Fcards+Acards+Tcards
+        f = open(_cryname, 'w')
+        for card in cards:
+            f.write(card)
+        f.close()
+        
+    
     def _get_params(self):
     
         return [self.a, self.b, self.c, self.alpha, self.beta, self.gamma]
@@ -294,6 +395,10 @@ class crystalStructure:
             for atom in self.atoms:
                 if atom.element == type:
                     self._show_atom(atom.lbl)
+    
+    def _Q_magnitude(self,H):
+    
+        return 2*np.pi/self._calculate_d_spacing(H)
     
     def _calculate_d_spacing(self, H):
         """
@@ -368,6 +473,7 @@ class crystalStructure:
         for atom in self.atoms:
             
             b = CD.atomInfo[atom.element][formfactors]
+            occ = atom.occ
             
             visited = []
             
@@ -380,7 +486,7 @@ class crystalStructure:
                 else:
                     visited.append(tuple(Xc%1))
                     Wj = self._calculate_Wj(atom.U, atom.Utype, symmOp['R'], H)
-                    F += b*np.exp(-2j*np.pi*np.dot(H,Xc))*np.exp(-Wj)
+                    F += b*occ*np.exp(-2j*np.pi*np.dot(H,Xc))*np.exp(-Wj)
                 
         return F
     
@@ -420,9 +526,9 @@ class crystalStructure:
                 elif _type_formfactor is 'dipole':
                     f = ff.magF_(atom.ion, s, L=atom._angular_L, S=atom._angular_S, J=atom._angular_J, type='dipole')
                     
-                chi = np.array([[atom._magX[0], atom._magX[5], atom._magX[4]],
-                                [atom._magX[5], atom._magX[1], atom._magX[3]],
-                                [atom._magX[4], atom._magX[3], atom._magX[2]]])
+                chi_ijk = np.array([[atom._magX[0], atom._magX[5], atom._magX[4]],
+                                    [atom._magX[5], atom._magX[1], atom._magX[3]],
+                                    [atom._magX[4], atom._magX[3], atom._magX[2]]])
                     
                 for symmOp in self.equivPositions:
                     R, t = symmOp['R'], symmOp['t']
@@ -431,7 +537,8 @@ class crystalStructure:
                         continue
                     else:
                         visited.append(tuple(Xc%1))
-                        m = np.matmul(np.matmul(np.matmul(R, chi), np.linalg.inv(R)), Hijk)
+                        Rijk = np.matmul(np.linalg.inv(np.transpose(self.IJK_Mbt_ABC)),np.matmul(R,np.transpose(self.IJK_Mbt_ABC)))
+                        m = np.matmul(np.matmul(np.matmul(Rijk, chi_ijk), np.linalg.inv(Rijk)), Hijk)
                         Wj = self._calculate_Wj(atom.U, atom.Utype, symmOp['R'], H)
                         F += f*m*np.exp(-2j*np.pi*np.dot(H,Xc))*np.exp(-Wj)
         

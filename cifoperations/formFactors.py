@@ -31,7 +31,7 @@ def landeG(L,S,J):
 def _plot_formfactor(ion, type, Sstart, Send):
 
     s = np.linspace(Sstart, Send, 1000)
-    f = _calculate_formfactor(ion, s, type=type)
+    f = _calculate_exponential_approx(ion, s, type=type)
     
     plt.plot(s,f)
     plt.show()

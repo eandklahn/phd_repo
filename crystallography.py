@@ -1,5 +1,6 @@
 import numpy as np
 from numpy import cos, sin, arcsin, radians, sqrt, pi as PI
+from cifoperations import crystallographyClasses as cc
 
 def rota(a):
 
@@ -202,4 +203,4 @@ class Atom:
         
     def createLabel(self, structure):
         """Makes an appropriate label for the atom based on the other atoms in the structure"""
-        pass
+        

@@ -70,8 +70,11 @@ atomInfo = {'H' : {'atom_no': 1,  'b_neut': -0.374},
             'C' : {'atom_no': 6,  'b_neut': 0.665},
             'N' : {'atom_no': 7,  'b_neut': 0.936},
             'O' : {'atom_no': 8,  'b_neut': 0.5805},
+            'P' : {'atom_no': 15, 'b_neut': 0.513},
             'S' : {'atom_no': 16, 'b_neut': 0.2847},
-            'Cl': {'atom_no': 17, 'b_neut': 0.95792},
+            'Cl': {'atom_no': 17, 'b_neut': 0.9579},
             'Co': {'atom_no': 27, 'b_neut': 0.249},
+            'Br': {'atom_no': 35, 'b_neut': 0.679},
+            'I':  {'atom_no': 53, 'b_neut': 0.528},
             'Dy': {'atom_no': 66, 'b_neut': 1.69}
             }

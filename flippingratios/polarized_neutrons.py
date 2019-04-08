@@ -25,7 +25,7 @@ def _calculate_flipping_ratio(Fn, Fm_perp_Q, P, _e=1):
     
     Fn2 = Fn*np.conjugate(Fn)
     Fm2 = np.dot(np.transpose(Fm_perp_Q), np.conjugate(Fm_perp_Q))
-    PFm = np.dot(np.transpose(P), Fm_perp_Q)
+    PFm = np.dot(np.transpose(P), Fm_perp_Q).real
     
     R_num = Fn2+Fm2+2*(PFm*Fn)
     R_den = Fn2+Fm2-2*(PFm*Fn)*_e
