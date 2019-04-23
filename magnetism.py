@@ -69,3 +69,4 @@ def brillouinPlot(J, L, S, maxB, maxM, T, minB=1e-6, increments=100):
 
 
 
+

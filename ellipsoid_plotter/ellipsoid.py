@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-def plot_ellipsoid(X, trans=[0,0,0]):
+def plot_ellipsoid(X, trans=[0,0,0], axes_in=None):
     
     E, V = np.linalg.eig(X)
     
@@ -13,8 +13,8 @@ def plot_ellipsoid(X, trans=[0,0,0]):
         print(E)
         return 1
     
-    t = np.linspace(0,np.pi,8)
-    p = np.linspace(0,2*np.pi,16)
+    t = np.linspace(0,np.pi,10)
+    p = np.linspace(0,2*np.pi,20)
     T, P = np.meshgrid(t, p)
     
     X = E[0]*np.sin(T)*np.cos(P)
@@ -27,19 +27,25 @@ def plot_ellipsoid(X, trans=[0,0,0]):
     _H = np.matmul(V,H)
     _X, _Y, _Z = np.reshape(_H[0,:],_shape)+trans[0], np.reshape(_H[1,:],_shape)+trans[1], np.reshape(_H[2,:],_shape)+trans[2]
     
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.plot_surface(_X,_Y,_Z)
+    if axes_in is None:
+        fig = plt.figure()
+        axes_in = fig.add_subplot(111, projection='3d')
+        
+    axes_in.plot_surface(_X,_Y,_Z,
+                         facecolor=(0,1,1),
+                         alpha=0.5,
+                         linewidth=0)
     
-    ax.set_xlim(trans[0]-_maxval,trans[0]+_maxval)
-    ax.set_ylim(trans[1]-_maxval,trans[1]+_maxval)
-    ax.set_zlim(trans[2]-_maxval,trans[2]+_maxval)
+    # Keep these lines. They keep a reasonable aspect ratio between the axes
+    axes_in.set_xlim(trans[0]-_maxval,trans[0]+_maxval)
+    axes_in.set_ylim(trans[1]-_maxval,trans[1]+_maxval)
+    axes_in.set_zlim(trans[2]-_maxval,trans[2]+_maxval)
     
-    ax.set_xlabel('x')
-    ax.set_ylabel('y')
-    ax.set_zlabel('z')
+    axes_in.set_xlabel('x')
+    axes_in.set_ylabel('y')
+    axes_in.set_zlabel('z')
     
-    plt.show()
+    return axes_in
 
     
 if __name__=='__main__':

@@ -65,7 +65,18 @@ def Uv(v,T):
 def f_Ev(v,T):
 
     tv = sc.h*sc.c*10**2*v/sc.kB
-
     f = (tv/T)**2*(np.exp(-tv/(2*T))/(1-np.exp(-tv/T)))**2
     
     return f
+    
+def mean_energy(Es, T):
+    """
+    Takes a Numpy array of energies "Es" and a temperature T
+    and returns the mean energy based on Boltzmann populated states
+    """
+    
+    exp_vector = np.exp(-sc.h*sc.c*10**2*Es/(sc.kB*T))
+    E_mean = np.sum(Es*exp_vector)/np.sum(exp_vector)
+    
+    return E_mean.real
+    
