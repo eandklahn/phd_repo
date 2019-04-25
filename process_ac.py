@@ -1013,7 +1013,7 @@ if __name__ == '__main__':
     PUT YOUR VALUES HERE
     """
     # Name of the file printed by the PPMS
-    fileName = '20180430DyfodOPy-ac-0.dat'
+    fileName = 'data\\dy_fod\\20180430DyfodOPy-ac-0.dat'
     
     # Molar weight of the sample
     molWeight = 2286.18 # in g/mol
@@ -1028,7 +1028,7 @@ if __name__ == '__main__':
     tempRange = [11.5, 20]
 
     # Whether to plot the result of CCFit on top of measured data
-    plotFit = False
+    plotFit = True
 
     # Whether to save the TvsTau file or not
     saveFile = True
@@ -1046,8 +1046,6 @@ if __name__ == '__main__':
     T, tau = makeTvsTauFile(D, TvsTaufileName, saveFile=saveFile)
     guess = getParameterGuesses(T, tau)
     
-    figS = plotSusceptibility(D, 20, type='Xpp')
-    
     fig1 = ColeColePlot(D, addFit=plotFit)
     fig2 = plotXppvsFreq(D, addFit=plotFit)
     fig3, p_fit = fitRelaxation(TvsTaufileName, tempRange, fitType=fitToMake)
@@ -1055,10 +1053,21 @@ if __name__ == '__main__':
     # The function addPartialModel can be used to add a plot showing the T vs tau simulation for a single process.
     # Use it as many times as deemed appropriate.
     # Parameters (in order):
-    # <figure to plot on>, <a list of temperatures>, <minimum temperature for simulation>, <maximum temperature for simulation>, <fitted parameters from the fitRelaxation-function>, <>
+    # <figure to plot on>,
+    # <a list of temperatures>, 
+    # <a list of relaxation times>, 
+    # <minimum temperature for simulation>, 
+    # <maximum temperature for simulation>, 
+    # <fitted parameters from the fitRelaxation-function>, 
+    # <which type of plot to add (possibilities: 'QT' or 'R' or 'O'>
     
-    #addPartialModel(fig3, T, tau, 7, 18, p_fit, plotType='R')
-    #addPartialModel(fig3, T, tau, 15, 25, p_fit, plotType='O')
+    # For example, to add a simulation of a Raman process to figure 3 between
+    # 7 K and 18 K, use the line below
+    # addPartialModel(fig3, T, tau, 7, 18, p_fit, plotType='R')
+    
+    # For example, to add a simulation of an Orbach process to figure 3 between
+    # 15 K and 25 K, use the line below
+    # addPartialModel(fig3, T, tau, 15, 25, p_fit, plotType='O')
     
     # KEEP THESE METHOD CALLS
     printFittedParams(p_fit)
