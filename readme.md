@@ -1,4 +1,4 @@
-# Project title
+# pyLIB
 Python library for miscellaneous operations
 
 ## Introduction
