@@ -1,0 +1,28 @@
+[
+    {
+        "name": "Dy_CpiPr5",
+        "doi": "10.1126/science.aav0652",
+        "tblock": 80,
+        "ueff_cm": 1541,
+        "year": 2018,
+        "ion": "Dy3+"
+    }
+    ,
+    {
+        "name": "Dy_CptBu",
+        "doi": "10.1038/nature23447",
+        "tblock": 60,
+        "ueff_cm": 1223,
+        "year": 2017,
+        "ion": "Dy3+"
+    }
+    ,
+    {
+        "name": null,
+        "doi": null,
+        "tblock": null,
+        "ueff": null,
+        "year": null
+        "ion": null
+    }
+]
