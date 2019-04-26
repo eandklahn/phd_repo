@@ -3,7 +3,9 @@
         "name": "Dy_CpiPr5",
         "doi": "10.1126/science.aav0652",
         "tblock": 80,
+        "tblock_source": "doi",
         "ueff_cm": 1541,
+        "ueff_cm_source": "doi",
         "year": 2018,
         "ion": "Dy3+"
     }
@@ -12,17 +14,54 @@
         "name": "Dy_CptBu",
         "doi": "10.1038/nature23447",
         "tblock": 60,
+        "tblock_source": "doi",
         "ueff_cm": 1223,
+        "ueff_cm_source": "doi",
         "year": 2017,
         "ion": "Dy3+"
+    }
+    ,
+    {
+        "name": "Dy_DBM",
+        "doi": "10.1002/chem.201803300",
+        "tblock": null,
+        "tblock_source": "doi",
+        "ueff_cm": 221.7,
+        "ueff_cm_source": "doi",
+        "year": 2018,
+        "ion": "Dy3+"
+    }
+    ,
+    {
+        "name": "Mn12",
+        "doi": "10.1038/365141a0",
+        "tblock": 3,
+        "tblock_source": "doi",
+        "ueff_cm": 41.7,
+        "ueff_cm_source": "10.1093/acprof:oso/9780198567530.001.0001",
+        "year": 1993,
+        "ion": "Mn"
+    }
+    ,
+    {
+        "name": "Fe1_linear",
+        "doi": "10.1038/nchem.1630",
+        "tblock": 6,
+        "tblock_source": "doi",
+        "ueff_cm": 226,
+        "ueff_cm_source": "doi",
+        "year": 2013,
+        "ion": "Fe1+"
     }
     ,
     {
         "name": null,
         "doi": null,
         "tblock": null,
-        "ueff": null,
-        "year": null
+        "tblock_source": null,
+        "ueff_cm": null,
+        "ueff_cm_source": null,
+        "year": null,
         "ion": null
     }
 ]
