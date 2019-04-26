@@ -6,8 +6,8 @@ Classes, methods and function for my own use in a PhD about crystallography
 
 ## Git commands
 
-### git checkout <b>branch name</b>
+### git checkout branchname
 For changing to a different branch
 
-### git branch <b>branch name</b>
+### git branch branchname
 For creating a new branch
