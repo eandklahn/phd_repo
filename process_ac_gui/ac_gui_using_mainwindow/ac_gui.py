@@ -1,4 +1,5 @@
 # PYTHON
+import ctypes
 import sys
 import numpy as np
 import scipy.constants as scicon
@@ -12,13 +13,13 @@ from matplotlib.backends.qt_compat import QtCore, QtWidgets, is_pyqt5
 
 from PyQt5.QtWinExtras import QWinTaskbarButton
 from PyQt5.QtGui import QIcon, QFont, QDoubleValidator
-from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton, QGridLayout, QLabel, QComboBox, QStackedWidget,
-                             QDoubleSpinBox, QFormLayout, QCheckBox, QSpinBox, QVBoxLayout, QMessageBox,
-                             QHBoxLayout, QFileDialog, QDialog, QLineEdit, QListWidget, QListWidgetItem)
+from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton, QLabel,
+                             QDoubleSpinBox, QFormLayout, QCheckBox, QVBoxLayout, QMessageBox,
+                             QHBoxLayout, QFileDialog, QDialog, QLineEdit, QListWidget, QListWidgetItem, QTabWidget)
 if is_pyqt5():
     from matplotlib.backends.backend_qt5agg import (FigureCanvas, NavigationToolbar2QT as NavigationToolbar)
 
-class ACGui(QWidget):
+class ACGui(QMainWindow):
 
     def __init__(self):
     
@@ -28,13 +29,25 @@ class ACGui(QWidget):
         
     def initUI(self):
         
-        self.setWindowTitle('AC processing')
+        """ Things to do with how the window is shown """
+        
+        self.setWindowTitle('AC Processing')
         self.setWindowIcon(QIcon('double_well_potential_R6p_icon.ico'))
+        
+        #self.taskbar_btn = QWinTaskbarButton()
+        #self.taskbar_btn.setWindow(super)
+        
+        """ FONT STUFF """
         self.headline_font = QFont()
         self.headline_font.setBold(True)
         
-        #self.taskbar_btn = QWinTaskbarButton()
-        #self.taskbar_btn.setWindow(self.container)
+        """ Setting up the main tab widget """
+        self.all_the_tabs = QTabWidget()
+        self.setCentralWidget(self.all_the_tabs)
+        
+        """ Constructing the data analysis tab """
+        self.data_analysis_tab = QWidget()
+        self.all_the_tabs.addTab(self.data_analysis_tab, 'Analysis')
         
         self.main_layout = QHBoxLayout()
         
@@ -97,13 +110,13 @@ class ACGui(QWidget):
         self.orbach_cb.stateChanged.connect(self.read_fit_type_cbs)
         self.fit_layout.addWidget(self.orbach_cb)
         
-        self.qt_cb = QCheckBox('QT')
-        self.qt_cb.stateChanged.connect(self.read_fit_type_cbs)
-        self.fit_layout.addWidget(self.qt_cb)
-        
         self.raman_cb = QCheckBox('Raman')
         self.raman_cb.stateChanged.connect(self.read_fit_type_cbs)
         self.fit_layout.addWidget(self.raman_cb)
+        
+        self.qt_cb = QCheckBox('QT')
+        self.qt_cb.stateChanged.connect(self.read_fit_type_cbs)
+        self.fit_layout.addWidget(self.qt_cb)
         
         # Adding temperature controls
         self.temp_headline = QLabel('Temperature interval')
@@ -156,11 +169,24 @@ class ACGui(QWidget):
         
         self.fit_layout.addLayout(self.sim_btn_layout)
         
-        # Finalizing layout and showing the GUI
+        # Finalizing layout
         self.main_layout.addLayout(self.load_layout)
         self.main_layout.addLayout(self.plot_layout)
         self.main_layout.addLayout(self.fit_layout)
-        self.setLayout(self.main_layout)
+        self.data_analysis_tab.setLayout(self.main_layout)
+        
+        """ Creating the data treatment tab """
+        self.data_treatment_tab = QWidget()
+        self.all_the_tabs.addTab(self.data_treatment_tab, 'Data treatment')
+        
+        self.data_treatment_layout = QHBoxLayout()
+        
+        self.data_treatment_lbl = QLabel('Here is where the data treatment is supposed to go on!')
+        self.data_treatment_layout.addWidget(self.data_treatment_lbl)
+        
+        self.data_treatment_tab.setLayout(self.data_treatment_layout)
+        
+        # Showing the GUI
         self.show()
     
     def see_all_on_axes(self):
@@ -614,7 +640,11 @@ class SimulationDialog(QDialog):
             pass
             
 if __name__ == '__main__':
-
+    
+            
+    myappid = 'AC Processing v1.0'
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    
     app = QApplication(sys.argv)
     w = ACGui()
     sys.exit(app.exec_())
