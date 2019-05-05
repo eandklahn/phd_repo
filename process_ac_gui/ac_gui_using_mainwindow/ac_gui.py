@@ -75,6 +75,10 @@ class ACGui(QMainWindow):
         self.load_layout = QVBoxLayout()
         self.load_layout.addStretch(1)
         
+        self.see_fit_btn = QPushButton('Fitted params')
+        self.see_fit_btn.clicked.connect(self.print_fitted_params)
+        self.load_layout.addWidget(self.see_fit_btn)
+        
         self.load_btn = QPushButton('Load')
         self.load_btn.clicked.connect(self.load_t_tau_data)
         self.load_layout.addWidget(self.load_btn)
@@ -188,6 +192,10 @@ class ACGui(QMainWindow):
         
         # Showing the GUI
         self.show()
+    
+    def print_fitted_params(self):
+    
+        print(self.fitted_parameters)
     
     def see_all_on_axes(self):
         
@@ -439,21 +447,32 @@ class ACGui(QMainWindow):
             perform_this_fit = self.read_fit_type_cbs()
             assert Tmin != Tmax
             assert perform_this_fit != ''
-        
-        except AssertionError:
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Warning)
-            msg.setWindowTitle('Fit aborted')
-            msg.setText('Check your temperature and fit settings')
-            msg.setDetailedText("""Possible errors:
- - min and max temperatures are the same
- - no fit options have been selected""")
-            msg.exec_()
-        
-        else:
+            
             fig3, p_fit = fitRelaxation(self.data_file_origin, (Tmin, Tmax), fitType=perform_this_fit)
             self.fitted_parameters = p_fit
         
+        except (AssertionError, RuntimeError, ValueError) as error:
+            
+            error_type = error.__class__.__name__
+            if error_type == 'AssertionError':
+                msg_text = 'Check your temperature and fit settings'
+                msg_details = """Possible errors:
+ - min and max temperatures are the same
+ - no fit options have been selected"""
+            elif error_type == 'RuntimeError':
+                msg_text = 'This fit cannot be made within the set temperatures'
+                msg_details = ''
+            elif error_type == 'ValueError':
+                msg_text = 'No file has been loaded'
+                msg_details = ''
+            
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setWindowTitle('Fit aborted')
+            msg.setText(msg_text)
+            msg.setDetailedText(msg_details)
+            msg.exec_()
+
 class SimulationDialog(QDialog):
 
     def __init__(self,
@@ -641,7 +660,6 @@ class SimulationDialog(QDialog):
             
 if __name__ == '__main__':
     
-            
     myappid = 'AC Processing v1.0'
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     
