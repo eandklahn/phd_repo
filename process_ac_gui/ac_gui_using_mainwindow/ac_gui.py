@@ -2,19 +2,22 @@
 import ctypes
 import sys
 import numpy as np
-import scipy.constants as scicon
+import pandas as pd
 import time
+from subprocess import Popen, PIPE
 # OWN ONES
 from process_ac import *
 # EXTERNAL
+import scipy.constants as scicon
 from scipy.optimize import minimize
+import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.qt_compat import QtCore, QtWidgets, is_pyqt5
 
 from PyQt5.QtWinExtras import QWinTaskbarButton
 from PyQt5.QtGui import QIcon, QFont, QDoubleValidator
-from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton, QLabel,
-                             QDoubleSpinBox, QFormLayout, QCheckBox, QVBoxLayout, QMessageBox,
+from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton, QLabel, QAction, QComboBox, QStackedWidget,
+                             QDoubleSpinBox, QFormLayout, QCheckBox, QVBoxLayout, QMessageBox, QSplitter, QGridLayout,
                              QHBoxLayout, QFileDialog, QDialog, QLineEdit, QListWidget, QListWidgetItem, QTabWidget)
 if is_pyqt5():
     from matplotlib.backends.backend_qt5agg import (FigureCanvas, NavigationToolbar2QT as NavigationToolbar)
@@ -29,13 +32,11 @@ class ACGui(QMainWindow):
         
     def initUI(self):
         
-        """ Things to do with how the window is shown """
+        self.startUp = True
         
+        """ Things to do with how the window is shown """
         self.setWindowTitle('AC Processing')
         self.setWindowIcon(QIcon('double_well_potential_R6p_icon.ico'))
-        
-        #self.taskbar_btn = QWinTaskbarButton()
-        #self.taskbar_btn.setWindow(super)
         
         """ FONT STUFF """
         self.headline_font = QFont()
@@ -45,13 +46,8 @@ class ACGui(QMainWindow):
         self.all_the_tabs = QTabWidget()
         self.setCentralWidget(self.all_the_tabs)
         
-        """ Constructing the data analysis tab """
-        self.data_analysis_tab = QWidget()
-        self.all_the_tabs.addTab(self.data_analysis_tab, 'Analysis')
-        
-        self.main_layout = QHBoxLayout()
-        
-        # Data containers
+        """ Constructing the data analysis tab ---------------------------------------------------------------------------------- """
+        # Data containers for analysis
         self.data_file_origin = None
         self.data_T = None
         self.data_tau = None
@@ -71,9 +67,27 @@ class ACGui(QMainWindow):
         
         self.simulation_items = []
         
-        """ Adding load controls """
+        # Data containers for treatment
+        
+        self.raw_df = None
+        self.raw_df_origin = None
+        self.num_meas_freqs = 0
+        self.num_meas_temps = 0
+        self.temp_subsets = []
+        self.meas_temps = []
+        self.Xd_capsule = -1.8*10**-8 # unit: emu/Oe
+        self.Xd_film = 6.47*10**-10 # unit: emu/(Oe*mg)
+        
+        self.raw_data_fit = None
+        
+        """ Creating data analysis tab ----------------------------------------------------- """
+        self.data_analysis_tab = QSplitter()
+        self.all_the_tabs.addTab(self.data_analysis_tab, 'Analysis')
+        
+        ## Adding load controls
+        self.load_wdgt = QWidget()
         self.load_layout = QVBoxLayout()
-        self.load_layout.addStretch(1)
+        self.load_layout.addStretch()
         
         self.see_fit_btn = QPushButton('Fitted params')
         self.see_fit_btn.clicked.connect(self.print_fitted_params)
@@ -83,27 +97,15 @@ class ACGui(QMainWindow):
         self.load_btn.clicked.connect(self.load_t_tau_data)
         self.load_layout.addWidget(self.load_btn)
         
-        self.reset_axes_btn = QPushButton('Reset axes')
-        self.reset_axes_btn.clicked.connect(self.see_all_on_axes)
-        self.load_layout.addWidget(self.reset_axes_btn)
+        self.load_wdgt.setLayout(self.load_layout)
         
         """ Adding plotting controls """
-        self.plot_layout = QVBoxLayout()
-        
-        # Adding the canvas for plotting relaxation times
-        self.tau_t_fig = Figure(figsize=(5,3))
-        self.tau_t_canvas = FigureCanvas(self.tau_t_fig)
-        self.tau_t_tools = NavigationToolbar(self.tau_t_canvas, self)
-        self.tau_t_ax = self.tau_t_fig.add_subplot(111)
-        
-        # Plotting in the axes
-        self.tau_t_ax.set_xlabel('Temperature [$K^{-1}$]')
-        self.tau_t_ax.set_ylabel(r'$\ln{\tau}$ [$\ln{s}$]')
-        
-        self.plot_layout.addWidget(self.tau_t_canvas)
-        self.plot_layout.addWidget(self.tau_t_tools)
+        self.ana_plot = PlottingWindow()
+        self.ana_plot.ax.set_xlabel('Temperature [$K^{-1}$]')
+        self.ana_plot.ax.set_ylabel(r'$\ln{\tau}$ [$\ln{s}$]')
         
         # Adding fit controls
+        self.fit_wdgt = QWidget()
         self.fit_layout = QVBoxLayout()
         
         self.cb_headline = QLabel('Fit types to consider')
@@ -173,61 +175,501 @@ class ACGui(QMainWindow):
         
         self.fit_layout.addLayout(self.sim_btn_layout)
         
-        # Finalizing layout
-        self.main_layout.addLayout(self.load_layout)
-        self.main_layout.addLayout(self.plot_layout)
-        self.main_layout.addLayout(self.fit_layout)
-        self.data_analysis_tab.setLayout(self.main_layout)
+        self.fit_wdgt.setLayout(self.fit_layout)
         
-        """ Creating the data treatment tab """
-        self.data_treatment_tab = QWidget()
+        # Finalizing layout of the data analysis tab
+        self.data_analysis_tab.addWidget(self.load_wdgt)
+        self.data_analysis_tab.addWidget(self.ana_plot)
+        self.data_analysis_tab.addWidget(self.fit_wdgt)
+        
+        """ Creating the data treatment tab  ------------------------------------------------------------------------------- """
+        self.data_treatment_tab = QSplitter()
         self.all_the_tabs.addTab(self.data_treatment_tab, 'Data treatment')
         
-        self.data_treatment_layout = QHBoxLayout()
+        ### Making the left column (data loading and visualization controls)
+        self.data_loading_wdgt = QWidget()
+        self.data_layout = QVBoxLayout()
         
-        self.data_treatment_lbl = QLabel('Here is where the data treatment is supposed to go on!')
-        self.data_treatment_layout.addWidget(self.data_treatment_lbl)
+        self.raw_data_load_btn = QPushButton('(1) Load')
+        self.raw_data_load_btn.clicked.connect(self.load_ppms_data)
+        self.data_layout.addWidget(self.raw_data_load_btn)
         
-        self.data_treatment_tab.setLayout(self.data_treatment_layout)
+        self.calculate_Xp_Xpp_btn = QPushButton("(2) Calc. X', X''")
+        self.calculate_Xp_Xpp_btn.clicked.connect(self.calculate_Xp_and_Xpp)
+        self.data_layout.addWidget(self.calculate_Xp_Xpp_btn)
+        
+        self.fit_Xp_Xpp_btn = QPushButton("(3) Fit X', X''")
+        self.fit_Xp_Xpp_btn.clicked.connect(self.fit_Xp_Xpp_w_ccfit)
+        self.data_layout.addWidget(self.fit_Xp_Xpp_btn)
+        
+        self.copy_fit_to_ana_btn = QPushButton('(4) Copy for analysis')
+        self.copy_fit_to_ana_btn.clicked.connect(self.copy_fit_to_analysis)
+        self.data_layout.addWidget(self.copy_fit_to_ana_btn)
+        
+        ## Constructing data plotting layout
+        self.raw_data_plot_lo = QVBoxLayout()
+        
+        self.analysis_plot_type_header = QLabel('Axis content')
+        self.analysis_plot_type_header.setFont(self.headline_font)
+        self.raw_data_plot_lo.addWidget(self.analysis_plot_type_header)
+        
+        self.analysis_plot_type_combo = QComboBox()
+        self.analysis_plot_type_combo.addItems(['Raw data', 'Fitted'])
+        self.analysis_plot_type_combo.currentIndexChanged.connect(self.switch_analysis_view)
+        self.raw_data_plot_lo.addWidget(self.analysis_plot_type_combo)
+        
+        self.raw_data_plot_header = QLabel('Raw data plotting')
+        self.raw_data_plot_header.setFont(self.headline_font)
+        self.raw_data_plot_lo.addWidget(self.raw_data_plot_header)
+        
+        # Constructing the x combobox
+        self.data_ana_x_lo = QHBoxLayout()
+        self.analysis_x_combo_lbl = QLabel('x')
+        self.data_ana_x_lo.addWidget(self.analysis_x_combo_lbl)
+        
+        self.analysis_x_combo = QComboBox()
+        self.analysis_x_combo.currentIndexChanged.connect(self.plot_from_combo)
+        self.data_ana_x_lo.addWidget(self.analysis_x_combo)
+        self.raw_data_plot_lo.addLayout(self.data_ana_x_lo)
+        
+        # Constructing the y combobox
+        self.data_ana_y_lo = QHBoxLayout()
+        self.analysis_y_combo_lbl = QLabel('y')
+        self.data_ana_y_lo.addWidget(self.analysis_y_combo_lbl)
+        
+        self.analysis_y_combo = QComboBox()
+        self.analysis_y_combo.currentIndexChanged.connect(self.plot_from_combo)
+        self.data_ana_y_lo.addWidget(self.analysis_y_combo)
+        self.raw_data_plot_lo.addLayout(self.data_ana_y_lo)
+        
+        self.data_layout.addLayout(self.raw_data_plot_lo)
+        
+        ## Finalizing the data loading widget
+        self.data_layout.addStretch()
+        self.data_loading_wdgt.setLayout(self.data_layout)
+        
+        # Making the middle of the tab (data visualization)
+        self.treat_sw = QStackedWidget()
+        
+        self.treat_raw_plot = PlottingWindow()
+        self.treat_fit_plot = PlottingWindow()
+        
+        self.treat_sw.addWidget(self.treat_raw_plot)
+        self.treat_sw.addWidget(self.treat_fit_plot)
+        
+        ## Making the right column (parameter controls)
+        self.param_wdgt = QWidget()
+        self.param_layout = QVBoxLayout()
+        
+        # Sample mass
+        self.sample_info_layout = QVBoxLayout()
+        
+        self.sample_info_header = QLabel('Sample information')
+        self.sample_info_header.setFont(self.headline_font)
+        self.sample_info_layout.addWidget(self.sample_info_header)
+        
+        # Sample mass edit
+        self.sample_mass_layout = QHBoxLayout()
+        self.sample_info_layout.addLayout(self.sample_mass_layout)
+        
+        self.sample_mass_lbl = QLabel('m (sample) [mg]')
+        self.sample_mass_layout.addWidget(self.sample_mass_lbl)
+        
+        self.sample_mass_inp = QLineEdit()
+        self.sample_mass_inp.setValidator(QDoubleValidator())
+        self.sample_mass_layout.addWidget(self.sample_mass_inp)
+        
+        # Film mass edit
+        self.film_mass_layout = QHBoxLayout()
+        self.sample_info_layout.addLayout(self.film_mass_layout)
+        
+        self.film_mass_lbl = QLabel('m (film) [mg]')
+        self.film_mass_layout.addWidget(self.film_mass_lbl)
+             
+        self.film_mass_inp = QLineEdit()
+        self.film_mass_inp.setValidator(QDoubleValidator())
+        self.film_mass_layout.addWidget(self.film_mass_inp)
+        
+        # Molar mass edit
+        self.molar_mass_lo = QHBoxLayout()
+        self.sample_info_layout.addLayout(self.molar_mass_lo)
+        
+        self.molar_mass_lbl = QLabel('M [g/mol]')
+        self.molar_mass_lo.addWidget(self.molar_mass_lbl)
+        
+        self.molar_mass_inp = QLineEdit()
+        self.molar_mass_inp.setValidator(QDoubleValidator())
+        self.molar_mass_lo.addWidget(self.molar_mass_inp)
+        
+        # Sample X' edit
+        self.sample_xd_lo = QHBoxLayout()
+        self.sample_info_layout.addLayout(self.sample_xd_lo)
+        
+        self.sample_xd_lbl = QLabel(u"X\u1D05"+' (sample) [emu/(Oe*mol)]')
+        self.sample_xd_lo.addWidget(self.sample_xd_lbl)
+        
+        self.sample_xd_inp = QLineEdit()
+        self.sample_xd_inp.setText('-6e-7')
+        self.sample_xd_inp.setValidator(QDoubleValidator())
+        self.sample_xd_lo.addWidget(self.sample_xd_inp)
+        
+        # Mass load button
+        self.load_mass_lo = QHBoxLayout()
+        self.sample_info_layout.addLayout(self.load_mass_lo)
+        
+        self.load_mass_btn = QPushButton('Load mass from file')
+        self.load_mass_btn.clicked.connect(self.load_sample_film_mass)
+        self.load_mass_lo.addWidget(self.load_mass_btn)
+        self.load_mass_lo.addStretch()
+        
+        self.param_layout.addLayout(self.sample_info_layout)
+        
+        # List of fitted raw data
+        self.treat_raw_fit_headline = QLabel('Fitted parameters')
+        self.treat_raw_fit_headline.setFont(self.headline_font)
+        self.param_layout.addWidget(self.treat_raw_fit_headline)
+        
+        self.treat_raw_fit_list = QListWidget()
+        self.param_layout.addWidget(self.treat_raw_fit_list)
+        self.treat_raw_fit_list.doubleClicked.connect(self.update_raw_plot_status)
+        
+        ## Finalizing layout
+        
+        self.param_layout.addStretch()
+        self.param_wdgt.setLayout(self.param_layout)
+        
+        self.data_treatment_tab.addWidget(self.data_loading_wdgt)
+        self.data_treatment_tab.addWidget(self.treat_sw)
+        self.data_treatment_tab.addWidget(self.param_wdgt)
+        
+        """ Making a menubar -------------------------------------------------------------- """
+        self.menu_bar = self.menuBar()
+        
+        # File menu
+        self.file_menu = self.menu_bar.addMenu('File')
+        
+        self.quit_action = QAction('&Quit', self)
+        self.quit_action.setShortcut("Ctrl+Q")
+        self.quit_action.triggered.connect(sys.exit)
+        self.file_menu.addAction(self.quit_action)
+        
+        # Simulation menu
+        self.sim_menu = self.menu_bar.addMenu('Simulation')
+        
+        self.add_sim_w_menu = QAction('&New', self)
+        self.add_sim_w_menu.setShortcut("Ctrl+Shift+N")
+        self.add_sim_w_menu.triggered.connect(self.add_new_simulation)
+        self.sim_menu.addAction(self.add_sim_w_menu)
         
         # Showing the GUI
+        self.load_t_tau_data()
+        
         self.show()
     
-    def print_fitted_params(self):
+    def copy_fit_to_analysis(self):
     
-        print(self.fitted_parameters)
+        try:
+            self.set_new_t_tau(np.array(self.meas_temps),
+                               np.array(self.raw_data_fit['Tau']))
+            self.read_indices_for_used_temps()
+            self.plot_t_tau_on_axes()
+        except TypeError:
+            print('When the fitted data does not yet exist')
+        
     
-    def see_all_on_axes(self):
+    def get_ccfit_starting_params(self):
+        """Reimplementation of CCFITStartingGuesses from process_ac"""
         
-        s = 0
-        if len(self.tau_t_ax.lines)<1: pass
-        else:
-            while True:
-                start = self.tau_t_ax.lines[s]
-                if len(start.get_xdata())<1:
-                    s += 1
-                else:
-                    break
+        lowest_t_idx = self.meas_temps.argmin()
         
-            x = start.get_xdata()
-            y = start.get_ydata()
+        v = self.temp_subsets[lowest_t_idx]['Frequency (Hz)']
+        Xp = self.temp_subsets[lowest_t_idx]["X' (emu/(Oe*mol))"]
+        Xpp = self.temp_subsets[lowest_t_idx]["X'' (emu/(Oe*mol))"]
+        
+        tau = 1/(2*np.pi*v[Xpp.idxmax()])
+        Xs = 0
+        Xt = Xp[0]
+        alpha = 0.1
+        
+        return (Xs, Xt, tau, alpha)
+    
+    def write_file_for_ccfit(self):
+        
+        f = open('ccin.dat', 'w')
+        f.write('1 {} {}\n'.format(self.num_meas_temps, self.num_meas_freqs))
+        f.write('{} {} {} {}\n'.format(*self.get_ccfit_starting_params()))
+        
+        for n in range(self.num_meas_freqs):
             
-            new_x = [x.min(), x.max()]
-            new_y = [y.min(), y.max()]
+            line = [self.raw_df['Frequency (Hz)'].iloc[n]]
             
-            for i in range(s+1, len(self.tau_t_ax.lines)):
-                x = self.tau_t_ax.lines[i].get_xdata()
-                y = self.tau_t_ax.lines[i].get_ydata()
+            for i in range(self.num_meas_temps):
+                line += [self.raw_df["X' (emu/(Oe*mol))"][i*self.num_meas_freqs+n],
+                         self.raw_df["X'' (emu/(Oe*mol))"][i*self.num_meas_freqs+n]]
                 
-                if len(x)>1 and len(y)>1:
-                    if x.min()<new_x[0]: new_x[0] = x.min()
-                    if x.max()>new_x[1]: new_x[1] = x.max()
-                    if y.min()<new_y[0]: new_y[0] = y.min()
-                    if y.max()>new_y[1]: new_y[1] = y.max()
+            line.append('\n')
+            line = ' '.join(str(e) for e in line)
             
-            self.tau_t_ax.set_xlim(new_x[0]-0.1*(new_x[1]-new_x[0]),new_x[1]+0.1*(new_x[1]-new_x[0]))
-            self.tau_t_ax.set_ylim(new_y[0]-0.1*(new_y[1]-new_y[0]),new_y[1]+0.1*(new_y[1]-new_y[0]))
-            self.tau_t_canvas.draw()
+            f.write(line)
+
+        f.close()
+        
+    def run_ccfit(self):
+        
+        ccfit = Popen('cc-fit ccin.dat', stdin=PIPE, stdout=PIPE, stderr=PIPE)
+        ccfit.stdin.write(b'\n')
+        out, err = ccfit.communicate()
+        
+    def switch_analysis_view(self):
+        
+        idx = self.analysis_plot_type_combo.currentIndex()
+        self.treat_sw.setCurrentIndex(idx)
+        
+    def read_ccfit_output(self):
+        
+        filename = 'ccin.dat_cc-fit.out'
+        headers = self.get_single_line(filename, 13).split()
+        self.raw_data_fit = pd.read_csv('ccin.dat_cc-fit.out',
+                                        names=headers,
+                                        sep='   ',
+                                        skiprows=13,
+                                        engine='python')
+        
+        self.update_treat_raw_fit_list()
+        self.plot_from_itemlist()
+    
+    def update_treat_raw_fit_list(self):
+    
+        for i in range(self.num_meas_temps):
+            newitem = QListWidgetItem()
+            newitem.setText('{}, {}, {}'.format(self.meas_temps[i],True, True))
+            plotting_dict = {'temp': self.meas_temps[i],
+                             'raw': True,
+                             'fit': True}
+            newitem.setData(32, plotting_dict)
+            self.treat_raw_fit_list.addItem(newitem)
+        
+    def fit_Xp_Xpp_w_ccfit(self):
+        
+        if "X' (emu/(Oe*mol))" in self.raw_df.columns:
+            working_directory = os.path.dirname(self.raw_df_origin)
+            os.chdir(working_directory)
+            self.write_file_for_ccfit()
+            self.run_ccfit()
+            self.read_ccfit_output()
+        else:
+            print('Give messagebox that they dont exist')
+    
+    def get_single_line(self, filename, line_number):
+
+        f = open(filename, 'r')
+        for n in range(line_number):
+            line = f.readline()
+        f.close()
+        
+        return line
+    
+    def load_sample_film_mass(self):
+    
+        starting_directory = os.getcwd()
+        filename_info = QFileDialog().getOpenFileName(self, 'Open file', starting_directory)
+        filename = filename_info[0]
+        
+        if filename == '':
+            return 0
+        else:
+            sample = self.get_single_line(filename, 9).strip()
+            film = self.get_single_line(filename, 10).strip()
+        
+        try:
+            sample = sample.split(',')
+            film = film.split(',')
+            assert sample[0] == 'INFO' and sample[1] == 's'
+            assert film[0] == 'INFO' and film[1] == 'f'
+        except AssertionError:
+            msg = QMessageBox()
+            msg.setText('File not as expected')
+            msg.setDetailedText("""Expected:
+line 9: INFO,s,<mass>mg
+line 10: INFO,f,<mass>mg""")
+            msg.exec_()
+        else:
+            sample = float(sample[2][:-2])
+            film = float(film[2][:-2])
+            
+            self.sample_mass_inp.setText(str(sample))
+            self.film_mass_inp.setText(str(film))
+    
+    def calculate_Xp_and_Xpp(self):
+        
+        self.Xd_capsule, self.Xd_film
+        
+        if self.raw_df is None:
+            # Don't do the calculation, if there is nothing to calculate on
+            pass
+        elif "X'' (emu/(Oe*mol))" in self.raw_df.columns:
+            # Don't add an element that is already there
+            pass
+        else:
+            try:
+                sample_mass = float(self.sample_mass_inp.text())
+                film_mass = float(self.film_mass_inp.text())
+                molar_mass = float(self.molar_mass_inp.text())
+                Xd_sample = float(self.sample_xd_inp.text())
+            except ValueError as error:
+                msg = QMessageBox()
+                msg.setWindowTitle('Error')
+                msg.setText('Could not read sample information')
+                msg.exec_()
+            else:
+                H = self.raw_df['Amplitude (Oe)']
+                H0 = self.raw_df['Magnetic Field (Oe)']
+                Mp = self.raw_df["M' (emu)"]
+                Mpp = self.raw_df["M'' (emu)"]
+                
+                Xp = (Mp - self.Xd_capsule*H - self.Xd_film*film_mass*H)*molar_mass/(sample_mass*H) - Xd_sample*molar_mass
+                Xpp = Mpp/(sample_mass*H)*molar_mass
+                
+                Xp_idx = self.raw_df.columns.get_loc("M' (emu)")+1
+                self.raw_df.insert(Xp_idx, column="X' (emu/(Oe*mol))", value=Xp)
+                
+                Xpp_idx = self.raw_df.columns.get_loc("M'' (emu)")+1
+                self.raw_df.insert(Xpp_idx, column="X'' (emu/(Oe*mol))", value=Xpp)
+        
+        self.update_temp_subsets()
+        self.update_analysis_combos()
+    
+    def update_itemdict(self, item, itemdict):
+        
+        item.setData(32, itemdict)
+        item.setText('{}, {}, {}'.format(itemdict['temp'],
+                                         itemdict['raw'],
+                                         itemdict['fit']))
+    
+    def update_raw_plot_status(self):
+        
+        item = self.treat_raw_fit_list.selectedItems()[0]
+        itemdict = item.data(32)
+        w = FitResultPlotStatus(plotting_dict=itemdict)
+        finished_value = w.exec_()
+        if not finished_value:
+            pass
+        else:
+            itemdict = {'temp': itemdict['temp'],
+                        'raw': w.raw_cb.isChecked(),
+                        'fit': w.fit_cb.isChecked()}
+            self.update_itemdict(item, itemdict)
+        
+        self.plot_from_itemlist()
+        self.treat_fit_plot.canvas.draw()
+    
+    def plot_from_itemlist(self):
+    
+        self.treat_fit_plot.ax.clear()
+        plot_type = "X'' (emu/(Oe*mol))"
+        
+        for row in range(self.num_meas_temps):
+            
+            item = self.treat_raw_fit_list.item(row)
+            itemdict = item.data(32)
+            
+            if itemdict['raw']:
+                self.treat_fit_plot.ax.plot(self.temp_subsets[row]['Frequency (Hz)'],
+                                            self.temp_subsets[row][plot_type],
+                                            'ko')
+            if itemdict['fit']:
+                self.treat_fit_plot.ax.plot(self.temp_subsets[row]['Frequency (Hz)'],
+                                            Xpp_(self.temp_subsets[row]['Frequency (Hz)'],
+                                                 self.raw_data_fit['ChiS'].iloc[row],
+                                                 self.raw_data_fit['ChiT'].iloc[row],
+                                                 self.raw_data_fit['Tau'].iloc[row],
+                                                 self.raw_data_fit['Alpha'].iloc[row]),
+                                            c=calcTcolor(self.meas_temps[row],
+                                                         self.meas_temps[0],
+                                                         self.meas_temps[-1]))
+                                                         
+        self.treat_fit_plot.ax.set_xscale('log')
+        self.treat_fit_plot.ax.set_xlabel('Frequency (Hz)')
+        self.treat_fit_plot.ax.set_ylabel(plot_type)
+    
+    def plot_from_combo(self):
+        
+        self.treat_raw_plot.ax.clear()
+        
+        idx_x = self.analysis_x_combo.currentIndex()
+        idx_y = self.analysis_y_combo.currentIndex()
+        
+        x_label = self.raw_df.columns[idx_x]
+        y_label = self.raw_df.columns[idx_y]
+        
+        self.treat_raw_plot.ax.plot(self.raw_df[x_label], self.raw_df[y_label])
+        self.treat_raw_plot.ax.set_xlabel(x_label)
+        self.treat_raw_plot.ax.set_ylabel(y_label)
+        
+        self.treat_raw_plot.canvas.draw()
+        
+    def load_ppms_data(self):
+    
+        starting_directory = os.getcwd()
+        filename_info = QFileDialog().getOpenFileName(self, 'Open file', starting_directory)
+        filename = filename_info[0]
+        
+        if filename == '':
+            pass
+        else:
+            self.ppms_data_file = filename
+        
+        try:
+            self.raw_df = pd.read_csv(filename,
+                                      header=20)
+        except:
+            pass
+        else:
+            self.num_meas_freqs = len(set(self.raw_df['Frequency (Hz)']))
+            self.num_meas_temps = int(self.raw_df.shape[0]/self.num_meas_freqs)
+            self.raw_df_origin = filename
+            self.cleanup_loaded_ppms()
+            self.update_temp_subsets()
+            self.update_meas_temps()
+            self.update_analysis_combos()
+    
+    def update_meas_temps(self):
+        
+        meas_temps = []
+        for sub in self.temp_subsets:
+            meas_temps.append(sub['Temperature (K)'].mean())
+        self.meas_temps = np.array(meas_temps)
+        
+    def update_temp_subsets(self):
+        
+        self.temp_subsets = []
+        nms = self.num_meas_freqs
+        for n in range(self.num_meas_temps):
+            self.temp_subsets.append(self.raw_df.iloc[n*nms:n*nms+nms])
+       
+    def update_analysis_combos(self):
+    
+        self.analysis_x_combo.clear()
+        self.analysis_x_combo.addItems(self.raw_df.columns)
+        
+        self.analysis_y_combo.clear()
+        self.analysis_y_combo.addItems(self.raw_df.columns)
+    
+    def cleanup_loaded_ppms(self):
+    
+        headers = self.raw_df
+        
+        for h in headers:
+            if np.all(np.isnan(self.raw_df[h])):
+                self.raw_df.drop(h, axis=1, inplace=True)
+    
+    def print_fitted_params(self):
+        
+        if self.fitted_parameters == None:
+            pass
+        else:
+            dialog = ParamDialog(param_dict=self.fitted_parameters)
+            finished = dialog.exec_()
     
     def add_new_simulation(self):
     
@@ -254,7 +696,7 @@ class ACGui(QMainWindow):
                 
                 new_list_item = QListWidgetItem()
                 
-                line = addPartialModel(self.tau_t_fig,
+                line = addPartialModel(self.ana_plot.fig,
                                         T_vals[0],
                                         T_vals[1],
                                         self.prepare_sim_dict_for_plotting(p_fit),
@@ -269,7 +711,7 @@ class ACGui(QMainWindow):
                 new_list_item.setText(new_item_text)
                 new_list_item.setData(32, list_item_data)
                 
-                self.tau_t_canvas.draw()
+                self.ana_plot.canvas.draw()
                 
         else:
             pass
@@ -313,9 +755,9 @@ class ACGui(QMainWindow):
                                     new_plot_type, new_T_vals[0], new_T_vals[1], new_p_fit['tQT'], new_p_fit['Cr'],
                                     new_p_fit['n'], new_p_fit['t0'], new_p_fit['Ueff'])
                     
-                    self.tau_t_ax.lines.remove(old_line)
+                    self.ana_plot.ax.lines.remove(old_line)
                     
-                    new_line = addPartialModel(self.tau_t_fig,
+                    new_line = addPartialModel(self.ana_plot.fig,
                                                new_T_vals[0],
                                                new_T_vals[1],
                                                self.prepare_sim_dict_for_plotting(new_p_fit),
@@ -326,7 +768,7 @@ class ACGui(QMainWindow):
                                       'T_vals': new_T_vals,
                                       'line': new_line}
                     
-                    self.tau_t_canvas.draw()
+                    self.ana_plot.canvas.draw()
                     
                     sim_item.setData(32, list_item_data)
                     sim_item.setText(new_item_text)
@@ -341,8 +783,8 @@ class ACGui(QMainWindow):
             pass
         else:
             line_pointer = sim_item.data(32)['line']
-            self.tau_t_ax.lines.remove(line_pointer)
-            self.tau_t_canvas.draw()
+            self.ana_plot.ax.lines.remove(line_pointer)
+            self.ana_plot.canvas.draw()
             
             item_row = self.list_of_simulations.row(sim_item)
             sim_item = self.list_of_simulations.takeItem(item_row)
@@ -352,34 +794,56 @@ class ACGui(QMainWindow):
     def plot_t_tau_on_axes(self):
         
         if self.data_used_pointer is not None:
-            self.tau_t_ax.lines.remove(self.data_used_pointer)
+            self.ana_plot.ax.lines.remove(self.data_used_pointer)
         if self.data_not_used_pointer is not None:
-            self.tau_t_ax.lines.remove(self.data_not_used_pointer)
+            self.ana_plot.ax.lines.remove(self.data_not_used_pointer)
         
-        self.data_used_pointer, = self.tau_t_ax.plot(1/self.used_T, np.log(self.used_tau), 'bo')
-        self.data_not_used_pointer, = self.tau_t_ax.plot(1/self.not_used_T, np.log(self.not_used_tau), 'ro')
+        self.data_used_pointer, = self.ana_plot.ax.plot(1/self.used_T, np.log(self.used_tau), 'bo')
+        self.data_not_used_pointer, = self.ana_plot.ax.plot(1/self.not_used_T, np.log(self.not_used_tau), 'ro')
         
-        self.tau_t_canvas.draw()
+        self.ana_plot.canvas.draw()
     
     def load_t_tau_data(self):
         
-        starting_directory = os.getcwd()
-        filename = QFileDialog().getOpenFileName(self, 'Open file', starting_directory)
+        if self.startUp:
+            try:
+                filename = sys.argv[1]
+            except IndexError:
+                pass
+            finally:
+                self.startUp = False
+                return 0
+        else:
+            starting_directory = os.getcwd()
+            filename_info = QFileDialog().getOpenFileName(self, 'Open file', starting_directory)
+            filename = filename_info[0]
         
-        self.data_file_origin = filename[0]
+        if filename == '':
+            pass
+        else:
+            self.data_file_origin = filename
         
         try:
             D = np.loadtxt(self.data_file_origin, skiprows=1)
-            self.data_T = D[:,0]
-            self.data_tau = D[:,1]
-        
-        except ValueError:
-            print('Encountered value error... check your input file!')
-        except OSError:
-            print('File was not found! Empty file name?')
+        except (ValueError, OSError) as error:
+            error_type = error.__class__.__name__
+            if error_type == 'ValueError':
+                msg = QMessageBox()
+                msg.setWindowTitle('ValueError')
+                msg.setIcon(QMessageBox.Warning)
+                msg.setText('File format is not as expected')
+                msg.exec_()
+            elif error_type == 'OSError':
+                pass
         else:
+            self.set_new_t_tau(D[:,0], D[:,1])
             self.read_indices_for_used_temps()
             self.plot_t_tau_on_axes()
+    
+    def set_new_t_tau(self, T, tau):
+        
+        self.data_T = T
+        self.data_tau = tau
     
     def prepare_sim_dict_for_plotting(self, p_fit_gui_struct):
 
@@ -426,8 +890,22 @@ class ACGui(QMainWindow):
             
         except (AttributeError, TypeError):
             print('No data have been selected yet!')
-        
     
+    def fit_relaxation(self):
+        """Reimplemented from fitRelaxation"""
+        
+        guess = getParameterGuesses(self.used_T, self.used_tau)
+        perform_this_fit = self.read_fit_type_cbs()
+        
+        f = getFittingFunction(fitType=perform_this_fit)
+        p0 = getStartParams(guess, fitType=perform_this_fit)
+        
+        popt, pcov = curve_fit(f, self.used_T, np.log(self.used_tau), p0)
+        
+        p_fit = readPopt(popt, pcov, fitType=perform_this_fit)
+        
+        return p_fit
+        
     def set_new_temp_ranges(self):
     
         new_max_for_low = self.temp_line[3].value()
@@ -448,7 +926,8 @@ class ACGui(QMainWindow):
             assert Tmin != Tmax
             assert perform_this_fit != ''
             
-            fig3, p_fit = fitRelaxation(self.data_file_origin, (Tmin, Tmax), fitType=perform_this_fit)
+            #fig3, p_fit = fitRelaxation(self.data_file_origin, (Tmin, Tmax), fitType=perform_this_fit)
+            p_fit = self.fit_relaxation()
             self.fitted_parameters = p_fit
         
         except (AssertionError, RuntimeError, ValueError) as error:
@@ -472,6 +951,69 @@ class ACGui(QMainWindow):
             msg.setText(msg_text)
             msg.setDetailedText(msg_details)
             msg.exec_()
+
+class FitResultPlotStatus(QDialog):
+
+    def __init__(self, plotting_dict=None):
+    
+        super(FitResultPlotStatus, self).__init__()
+        
+        self.setWindowTitle('Update plot status')
+        self.layout = QGridLayout()
+        
+        self.raw_lbl = QLabel('Raw')
+        
+        self.raw_cb = QCheckBox()
+        self.raw_cb.setChecked(plotting_dict['raw'])
+        
+        self.fit_lbl = QLabel('Fitted')
+        
+        self.fit_cb = QCheckBox()
+        self.fit_cb.setChecked(plotting_dict['fit'])
+        
+        self.cancel_btn = QPushButton('Cancel')
+        self.cancel_btn.clicked.connect(self.reject)
+        
+        self.ok_btn = QPushButton('Ok')
+        self.ok_btn.clicked.connect(self.accept)
+        
+        self.layout.addWidget(self.raw_lbl,0,0)
+        self.layout.addWidget(self.raw_cb,1,0)
+        self.layout.addWidget(self.cancel_btn,2,0)
+        self.layout.addWidget(self.fit_lbl,0,1)
+        self.layout.addWidget(self.fit_cb,1,1)
+        self.layout.addWidget(self.ok_btn,2,1)
+        
+        self.setLayout(self.layout)
+        
+        self.show()
+        
+class ParamDialog(QDialog):
+
+    def __init__(self,
+                 parent=None,
+                 param_dict=None):
+                 
+        super(ParamDialog, self).__init__()
+        
+        self.setWindowTitle('Fitted parameters')
+        self.dialog_layout = QVBoxLayout()
+        self.param_labels = {}
+        
+        for val in param_dict['quantities']:
+            multiplier = 1
+            idx = param_dict['quantities'].index(val)
+            
+            current_label = QLabel()
+            if val == 'Ueff': multiplier = scicon.Boltzmann
+            current_label.setText('{}: {:6.3e} +/- {:6.3e}'.format(val,
+                                                                   param_dict['params'][idx]/multiplier,
+                                                                   param_dict['sigmas'][idx]/multiplier))
+                                                                   
+            self.dialog_layout.addWidget(current_label)
+        
+        self.setLayout(self.dialog_layout)
+        self.show()
 
 class SimulationDialog(QDialog):
 
@@ -657,6 +1199,72 @@ class SimulationDialog(QDialog):
             assert self.min_and_max_temps[0]<=self.min_and_max_temps[1]
         except AssertionError:
             pass
+
+class PlottingWindow(QWidget):
+
+    def __init__(self):
+    
+        super(PlottingWindow, self).__init__()
+        
+        self.layout = QVBoxLayout()
+        
+        self.fig = Figure()
+        self.canvas = FigureCanvas(self.fig)
+        self.tools = NavigationToolbar(self.canvas, self)
+        self.ax = self.fig.add_subplot(111)
+        
+        self.layout.addWidget(self.canvas)
+        
+        self.tool_lo = QHBoxLayout()
+        self.tool_lo.addWidget(self.tools)
+        self.tool_lo.addStretch()
+        
+        self.reset_axes_btn = QPushButton('Reset axes')
+        self.reset_axes_btn.clicked.connect(self.reset_axes)
+        self.tool_lo.addWidget(self.reset_axes_btn)
+        self.layout.addLayout(self.tool_lo)
+        
+        self.setLayout(self.layout)
+        
+    def reset_axes(self):
+       
+       s = 0
+       if len(self.ax.lines)<1: pass
+       else:
+           while True:
+               start = self.ax.lines[s]
+               if len(start.get_xdata())<1:
+                   s += 1
+               else:
+                   break
+           
+           x = start.get_xdata()
+           y = start.get_ydata()
+           
+           new_x = [x.min(), x.max()]
+           new_y = [y.min(), y.max()]
+           
+           for i in range(s, len(self.ax.lines)):
+               x = self.ax.lines[i].get_xdata()
+               y = self.ax.lines[i].get_ydata()
+               
+               if len(x)>1 and len(y)>1:
+                   if x.min()<new_x[0]: new_x[0] = x.min()
+                   if x.max()>new_x[1]: new_x[1] = x.max()
+                   if y.min()<new_y[0]: new_y[0] = y.min()
+                   if y.max()>new_y[1]: new_y[1] = y.max()
+           
+           if new_x[0] == new_x[1]:
+               new_x[0] -= 0.5
+               new_x[1] += 0.5
+           if new_y[0] == new_y[1]:
+               new_y[0] -= 0.5
+               new_y[1] += 0.5
+               
+           self.ax.set_xlim(new_x[0]-0.05*(new_x[1]-new_x[0]),new_x[1]+0.05*(new_x[1]-new_x[0]))
+           self.ax.set_ylim(new_y[0]-0.05*(new_y[1]-new_y[0]),new_y[1]+0.05*(new_y[1]-new_y[0]))
+           
+           self.canvas.draw()
             
 if __name__ == '__main__':
     
