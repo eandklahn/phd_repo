@@ -18,7 +18,8 @@ from PyQt5.QtWinExtras import QWinTaskbarButton
 from PyQt5.QtGui import QIcon, QFont, QDoubleValidator
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QApplication, QPushButton, QLabel, QAction, QComboBox, QStackedWidget,
                              QDoubleSpinBox, QFormLayout, QCheckBox, QVBoxLayout, QMessageBox, QSplitter, QGridLayout,
-                             QHBoxLayout, QFileDialog, QDialog, QLineEdit, QListWidget, QListWidgetItem, QTabWidget)
+                             QHBoxLayout, QFileDialog, QDialog, QLineEdit, QListWidget, QListWidgetItem, QTabWidget,
+                             QScrollArea)
 if is_pyqt5():
     from matplotlib.backends.backend_qt5agg import (FigureCanvas, NavigationToolbar2QT as NavigationToolbar)
 
@@ -548,9 +549,28 @@ line 10: INFO,f,<mass>mg""")
     
     def update_raw_plot_status(self):
         
+        w = FitResultPlotStatus(list_input=self.treat_raw_fit_list)
+        finished_value = w.exec_()
+        if not finished_value:
+            pass
+        else:
+            final_states = w.checked_items
+            
+            for i, boxes in enumerate(final_states):
+                item = self.treat_raw_fit_list.item(i)
+                item_data = item.data(32)
+                item_data['raw'] = boxes[0].isChecked()
+                item_data['fit'] = boxes[1].isChecked()
+                self.update_itemdict(item, item_data)
+            
+        self.plot_from_itemlist()
+        self.treat_fit_plot.canvas.draw()
+    
+    def update_raw_plot_status2(self):
+        # Old function which only checks/unchecks one box at a time
         item = self.treat_raw_fit_list.selectedItems()[0]
         itemdict = item.data(32)
-        w = FitResultPlotStatus(plotting_dict=itemdict)
+        w = FitResultPlotStatus(list_input=self.treat_raw_fit_list)
         finished_value = w.exec_()
         if not finished_value:
             pass
@@ -954,6 +974,98 @@ line 10: INFO,f,<mass>mg""")
 
 class FitResultPlotStatus(QDialog):
 
+    def __init__(self, list_input=None):
+    
+        super(FitResultPlotStatus, self).__init__()
+        
+        self.layout = QVBoxLayout()
+        
+        self.lbl_lo = QHBoxLayout()
+        self.raw_lbl = QLabel('Raw')
+        self.fit_lbl = QLabel('Fit')
+        self.lbl_lo.addWidget(self.raw_lbl)
+        self.lbl_lo.addWidget(self.fit_lbl)
+        self.layout.addLayout(self.lbl_lo)
+        
+        self.scroll = QScrollArea(self)
+        self.scroll.setWidgetResizable(True)
+        self.layout.addWidget(self.scroll)
+        
+        self.content = QWidget(self.scroll)
+        self.cont_lo = QVBoxLayout(self.content)
+        self.content.setLayout(self.cont_lo)
+        self.scroll.setWidget(self.content)
+        
+        self.checked_items = []
+        
+        num_of_temps = list_input.count()
+        for idx in range(num_of_temps):
+            item = list_input.item(idx)
+            item_lo = QHBoxLayout()
+            item_data = item.data(32)
+            
+            item_fit_bool = item_data['fit']
+            item_raw_bool = item_data['raw']
+            item_txt = item_data['temp']
+            
+            raw_checked = QCheckBox()
+            fit_checked = QCheckBox()
+            temp = QLabel('{:5.2f}K'.format(item_data['temp']))
+            
+            item_lo.addWidget(temp)
+            item_lo.addWidget(raw_checked)
+            item_lo.addWidget(fit_checked)
+            
+            self.checked_items.append([raw_checked, fit_checked])
+            
+            raw_checked.setChecked(item_raw_bool)
+            fit_checked.setChecked(item_fit_bool)
+            
+            self.cont_lo.addLayout(item_lo)
+        
+        self.state_btn_lo = QHBoxLayout()
+        
+        self.check_all_btn = QPushButton('Check all')
+        self.check_all_btn.clicked.connect(self.check_all_function)
+        
+        self.uncheck_all_btn = QPushButton('Uncheck all')
+        self.uncheck_all_btn.clicked.connect(self.uncheck_all_function)
+        
+        self.state_btn_lo.addWidget(self.uncheck_all_btn)
+        self.state_btn_lo.addWidget(self.check_all_btn)
+        
+        self.layout.addLayout(self.state_btn_lo)
+        
+        self.judge_btn_lo = QHBoxLayout()
+        
+        self.states_reject_btn = QPushButton('Cancel')
+        self.states_reject_btn.clicked.connect(self.reject)
+        self.judge_btn_lo.addWidget(self.states_reject_btn)
+        
+        self.states_accept_btn = QPushButton('Ok')
+        self.states_accept_btn.clicked.connect(self.accept)
+        self.judge_btn_lo.addWidget(self.states_accept_btn)
+        
+        self.layout.addLayout(self.judge_btn_lo)
+        
+        self.setLayout(self.layout)
+        self.show()
+        
+    def check_all_function(self):
+    
+        for sublist in self.checked_items:
+            sublist[0].setChecked(True)
+            sublist[1].setChecked(True)
+        
+    def uncheck_all_function(self):
+    
+        for sublist in self.checked_items:
+            sublist[0].setChecked(False)
+            sublist[1].setChecked(False)
+        
+class FitResultPlotStatus2(QDialog):
+    # Old class that implemented a dialog to change one list item at a time
+    
     def __init__(self, plotting_dict=None):
     
         super(FitResultPlotStatus, self).__init__()
