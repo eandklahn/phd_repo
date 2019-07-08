@@ -1,5 +1,6 @@
 import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
+import matplotlib.patches as ptc
 import numpy as np
 import os
 from scipy.ndimage.filters import gaussian_filter
@@ -482,7 +483,58 @@ if __name__ == '__main__':
     files = [(files[int(2*n)], files[int(2*n+1)])
             for n in range(int(len(files)/2))
             ]
-            
+    
+    """Run through multiple files"""
+    n_list = [34,44,50,67,82,91,95,97,99,131,144,145,146,147,148,159,162,164,170]
+    w_list = [37, ]
+    refln_number = 44
+    all_peaks = np.zeros((256, 256))
+    for refln_number in range(len(files)):
+        print(refln_number)
+        image_up = load_image_from_scan(file_directory+files[refln_number][0])[0]
+        image_dw = load_image_from_scan(file_directory+files[refln_number][1])[0]
+    
+    #f, ax = plt.subplots(nrows=2,ncols=2)
+    #ax[0,0].imshow(image_up)
+    #ax[0,1].imshow(image_up)
+    #ax[1,0].imshow(gaussian_filter(image_up, 1))
+    #ax[1,1].imshow(gaussian_filter(image_dw, 1))
+    #plt.show()
+    
+        peak_region_boolean = get_common_peak(image_up, image_dw, sigma_in=1)
+        peak_border_boolean = get_peak_border(peak_region_boolean)
+        peak_padding = add_padding_w_circles(peak_border_boolean, fill_shape)
+        padded_peak_region = np.logical_or(peak_padding, peak_region_boolean)
+        padded_peak_region = punch_out_border_and_small_patches(padded_peak_region, fill_shape)
+        background = make_too_large_background(padded_peak_region)
+        background, padded_peak_region = remove_background_border_patches(background, padded_peak_region, fill_shape)
+        #all_peaks = np.logical_or(all_peaks, padded_peak_region)
+    
+    #fig, ax = plt.subplots(ncols=2)
+    #ax[0].imshow(padded_peak_region)
+    #ax[1].imshow(background)
+    #plt.show()
+    
+    #fig, ax = plt.subplots(ncols=3)
+    #ax[0].imshow(peak_region_boolean)
+    #ax[1].imshow(padded_peak_region)
+    #ax[2].imshow(background)
+    #plt.show()
+    
+        f, ax = plt.subplots(ncols=2)
+        ax[0].imshow(padded_peak_region)
+        ax[1].imshow(image_dw)
+        ax[0].add_patch(ptc.Rectangle(xy=(67,60), width=110, height=130, alpha=0.5, color='g'))
+        ax[1].add_patch(ptc.Rectangle(xy=(67,60), width=110, height=130, alpha=0.5, color='g'))
+        plt.show()
+    
+    """Plot all detected peak areas"""
+    #fig, ax = plt.subplots()
+    #ax.imshow(all_peaks)
+    #ax.add_patch(ptc.Rectangle(xy=(67,60), width=110, height=130, alpha=0.5, color='g'))
+    #plt.show()
+    
+    """Legacy"""
     #for refln_number in range(len(files)):
     #    print(refln_number)
     #    image_up = load_image_from_scan(file_directory+files[refln_number][0])[0]

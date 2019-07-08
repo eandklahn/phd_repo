@@ -40,6 +40,8 @@ def readCHILSQ_FRs(fileName, params=None):
             variables = float(line.split()[0])
         n += 1
     
+    print(beginnings)
+    
     dictOut = {}
     for n in range(len(names)):
         A = np.array([line.split() for line in D[beginnings[n]:endings[n]]], dtype='float')

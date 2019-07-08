@@ -33,6 +33,10 @@ class ACGui(QMainWindow):
         
     def initUI(self):
         
+        """About"""
+        self.about_information = {'author': 'Emil A. Klahn',
+                                  'webpage': 'https://chem.au.dk/en/molmag'}
+        
         self.startUp = True
         
         """ Things to do with how the window is shown """
@@ -362,10 +366,22 @@ class ACGui(QMainWindow):
         self.add_sim_w_menu.triggered.connect(self.add_new_simulation)
         self.sim_menu.addAction(self.add_sim_w_menu)
         
+        # About menu
+        self.help_menu = self.menu_bar.addMenu('Help')
+        
+        self.help_about_menu = QAction('About', self)
+        self.help_about_menu.triggered.connect(self.show_about_dialog)
+        self.help_menu.addAction(self.help_about_menu)
+        
         # Showing the GUI
         self.load_t_tau_data()
         
         self.show()
+    
+    def show_about_dialog(self):
+    
+        w = AboutDialog(info=self.about_information)
+        w.exec_()
     
     def copy_fit_to_analysis(self):
     
@@ -485,8 +501,12 @@ class ACGui(QMainWindow):
         try:
             sample = sample.split(',')
             film = film.split(',')
-            assert sample[0] == 'INFO' and sample[1] == 's'
-            assert film[0] == 'INFO' and film[1] == 'f'
+            
+            print(sample)
+            print(film)
+            
+            assert sample[0] == 'INFO' and (sample[1] == 's' or sample[1] == 'sample')
+            assert film[0] == 'INFO' and (film[1] == 'f' or film[1] == 'film')
         except AssertionError:
             msg = QMessageBox()
             msg.setText('File not as expected')
@@ -1324,6 +1344,7 @@ class PlottingWindow(QWidget):
         self.canvas = FigureCanvas(self.fig)
         self.tools = NavigationToolbar(self.canvas, self)
         self.ax = self.fig.add_subplot(111)
+        self.fig.subplots_adjust(left=0.05, bottom=0.05, right=0.95, top=0.95)
         
         self.layout.addWidget(self.canvas)
         
@@ -1377,7 +1398,28 @@ class PlottingWindow(QWidget):
            self.ax.set_ylim(new_y[0]-0.05*(new_y[1]-new_y[0]),new_y[1]+0.05*(new_y[1]-new_y[0]))
            
            self.canvas.draw()
-            
+
+class AboutDialog(QDialog):
+    
+    def __init__(self, info):
+    
+        super(AboutDialog, self).__init__()
+        
+        self.layout = QVBoxLayout()
+        
+        self.setWindowTitle('About')
+        
+        self.author_lbl = QLabel(info['author'])
+        self.layout.addWidget(self.author_lbl)
+        
+        self.web_lbl = QLabel('<a href={}>Webpage</a>'.format(info['webpage']))
+        self.web_lbl.setOpenExternalLinks(True)
+        self.layout.addWidget(self.web_lbl)
+        
+        self.setLayout(self.layout)
+        self.show()
+        
+           
 if __name__ == '__main__':
     
     myappid = 'AC Processing v1.0'

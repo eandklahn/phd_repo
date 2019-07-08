@@ -34,7 +34,8 @@ def plot_ellipsoid(X, trans=[0,0,0], axes_in=None):
     axes_in.plot_surface(_X,_Y,_Z,
                          facecolor=(0,1,1),
                          alpha=0.5,
-                         linewidth=0)
+                         linewidth=1
+                         )
     
     # Keep these lines. They keep a reasonable aspect ratio between the axes
     axes_in.set_xlim(trans[0]-_maxval,trans[0]+_maxval)

@@ -397,7 +397,7 @@ class crystalStructure:
                     self._show_atom(atom.lbl)
     
     def _Q_magnitude(self,H):
-    
+        
         return 2*np.pi/self._calculate_d_spacing(H)
     
     def _calculate_d_spacing(self, H):

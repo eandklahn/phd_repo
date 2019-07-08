@@ -90,5 +90,25 @@ def division(a, b, e=1e-15):
                 a-=b
                 temp += 1
             res += temp*10**-pot
-    return res    
+    return res
+    
+def sequence_van_eck(N):
+    
+    sequence=[0]
+    seen = {}
+    
+    for n in range(N):
+        last = sequence[-1]
+        flag = seen.get(str(last))
+        
+        if flag is None:
+            new = 0
+            seen[str(last)]=True
+        
+        else:
+            new = sequence[:-1][::-1].index(last)+1
+            
+        sequence.append(new)
+    
+    return sequence
     

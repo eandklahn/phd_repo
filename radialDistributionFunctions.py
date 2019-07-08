@@ -21,3 +21,14 @@ def P_r(Z,n,l,r):
     P_r = P_r/np.linalg.norm(P_r)
 
     return P_r
+    
+if __name__ == '__main__':
+    
+    import numpy as np
+    import matplotlib.pyplot as plt
+    
+    r = np.linspace(1e-14,20,1001)
+    plt.plot(r, P_r(66,4,3,r), label='4f')
+    plt.plot(r, P_r(25,3,2,r), label='3d')
+    plt.legend()
+    plt.show()

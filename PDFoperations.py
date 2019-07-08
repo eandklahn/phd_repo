@@ -1,4 +1,22 @@
 from PyPDF2 import PdfFileWriter, PdfFileReader, PdfFileMerger
+import argparse
+import sys
+import os
+
+parser = argparse.ArgumentParser(description='Perform merging and splitting of pdf-files')
+
+parser.add_argument('-t', '--type',
+                    default='merge',
+                    required=False,
+                    dest='TYPE',
+                    choices=['merge', 'split', 'rotate'])
+
+parser.add_argument('-f', '--file',
+                    default=None,
+                    required=False,
+                    dest='SPLITFILE')
+                    
+parser.add_argument('rest', nargs=argparse.REMAINDER)
 
 def splitPDFintoPages(filename):
     """
@@ -35,8 +53,14 @@ def mergePDFs(inputList, outputname):
             
 if __name__ == '__main__':
     
-    list = ['0','1','2','3','4','5']
-           
-    mergePDFs(list, 'rental')
+    ARGS = parser.parse_args()
     
-    #splitPDFintoPages('5pages.pdf')
+    if ARGS.TYPE=='merge':
+        mergePDFs(ARGS.rest, 'merged')
+    elif ARGS.TYPE=='split':
+        if ARGS.SPLITFILE:
+            splitPDFintoPages(ARGS.SPLITFILE)
+        else:
+            print('No file given to split')
+    elif ARGS.TYPE=='rotate':
+        print('No functionality yet')

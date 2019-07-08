@@ -16,6 +16,7 @@ def magF_(ion, s, L=None, S=None, J=None, type='j0'):
     elif type == 'dipole':
         g = landeG(L,S,J)
         j2 = _calculate_exponential_approx(ion, s, type='j2')
+        # Use expression from McPhase manual for magnetic form factor
         f = j0+(2-g)/g*j2
         return f
     else:
@@ -226,9 +227,13 @@ which uses the values calculated in http://it.iucr.org/Cb/ch6o1v0001/
     print('Electronic form factor table updated')
     
 if __name__ == '__main__':
-
-    _update_elecformfactortable()
-    _update_magj0formfactortable()
-    _update_magj2formfactortable()
     
-    _plot_formfactor('Co2')
+    s = np.linspace(0,10,101)
+    magF_(ion, s, L=5, S=2/5, J=15/2, type='dipole')
+    
+    
+    #_update_elecformfactortable()
+    #_update_magj0formfactortable()
+    #_update_magj2formfactortable()
+    #
+    #_plot_formfactor('Co2')
