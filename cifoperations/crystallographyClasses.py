@@ -162,7 +162,15 @@ class crystalStructure:
         
         # Matrix for coordinate transformation from crystallographic basis to orthonormal CCSL basis
         self.IJK_Mct_ABC = np.transpose(self.ABC_Mbt_IJK)
-
+        
+        # Matrix for coordinate transformation from crystallographic basis to orthonormal XYZ basis
+        self.XYZ_Mct_ABC = np.mat([[self.a, self.b*np.cos(gamma), self.c*np.cos(beta)                                                ],
+                                   [0     , self.b*np.sin(gamma), self.c*((np.cos(alpha) - np.cos(beta)*np.cos(gamma))/np.sin(gamma))],
+                                   [0     , 0                   , self.V/(self.a*self.b*np.sin(gamma))                               ]])
+        
+        # Matrix for basis transformation from crystallographic basis to orthonormal XYZ basis
+        self.XYZ_Mbt_ABC = np.transpose(np.linalg.inv(self.XYZ_Mct_ABC))
+        
     def _read_CIF(self):
         
         if self.cifFile is not None:
