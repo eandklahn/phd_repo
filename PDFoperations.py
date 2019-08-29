@@ -50,7 +50,25 @@ def mergePDFs(inputList, outputname):
         outputname += '.pdf'
     
     outputPDF.write(outputname)
-            
+
+def rotate_pdf(rest_list):
+    
+    file_in_name = rest_list[0]
+    file_out_name = file_in_name.split('.')[0]+'_rot.pdf'
+    
+    infile = open(file_in_name, 'rb')
+    outfile = open(file_out_name, 'wb')
+    
+    pdf_in = PdfFileReader(infile)    
+    pdf_out = PdfFileWriter()
+    for i in range(pdf_in.numPages):
+        pdf_out.addPage(pdf_in.getPage(i).rotateCounterClockwise(90))
+    
+    pdf_out.write(outfile)
+    
+    infile.close()
+    outfile.close()
+    
 if __name__ == '__main__':
     
     ARGS = parser.parse_args()
@@ -63,4 +81,4 @@ if __name__ == '__main__':
         else:
             print('No file given to split')
     elif ARGS.TYPE=='rotate':
-        print('No functionality yet')
+        rotate_pdf(ARGS.rest)

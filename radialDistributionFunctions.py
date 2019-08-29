@@ -27,8 +27,21 @@ if __name__ == '__main__':
     import numpy as np
     import matplotlib.pyplot as plt
     
-    r = np.linspace(1e-14,20,1001)
+    r = np.linspace(1e-14,30,1001)
+    Z = 66
+    #plt.plot(r, P_r(66,1,0,r), label='1s')
+    #plt.plot(r, P_r(66,2,0,r), label='2s')
+    #plt.plot(r, P_r(66,2,1,r), label='2p')
+    #plt.plot(r, P_r(66,3,0,r), label='3s')
+    #plt.plot(r, P_r(66,3,1,r), label='3p')
+    #plt.plot(r, P_r(66,3,2,r), label='3d')
+    #plt.plot(r, P_r(66,4,0,r), label='4s')
+    #plt.plot(r, P_r(66,4,2,r), label='4d')
+    #plt.plot(r, P_r(66,4,1,r), label='4p')
     plt.plot(r, P_r(66,4,3,r), label='4f')
-    plt.plot(r, P_r(25,3,2,r), label='3d')
+    plt.plot(r, P_r(66,5,0,r), label='5s')
+    plt.plot(r, P_r(66,5,1,r), label='5p')
+    
+    #plt.plot(r, P_r(25,3,2,r), label='3d')
     plt.legend()
     plt.show()

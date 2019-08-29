@@ -173,8 +173,8 @@ class crystalStructure:
             _look_for_magnetic_atoms = True
             
             # Crystallographic information
-            self.SG = data['_space_group_name_H-M_alt']
-            self.crystalsystem = data['_space_group_crystal_system']
+            #self.SG = data['_space_group_name_H-M_alt']
+            #self.crystalsystem = data['_space_group_crystal_system']
             
             # Read cell parameters
             self.a, self.da         = _split_val_sigma(data['_cell_length_a'])
@@ -185,10 +185,10 @@ class crystalStructure:
             self.gamma, self.dgamma = _split_val_sigma(data['_cell_angle_gamma'])
             
             # Read symmetry information
-            symms = data['_space_group_symop_operation_xyz']
-            for s in symms:
-                self.symmetrystrings.append(s)
-                self.equivPositions.append(_read_symmop(s))
+            #symms = data['_space_group_symop_operation_xyz']
+            #for s in symms:
+            #    self.symmetrystrings.append(s)
+            #    self.equivPositions.append(_read_symmop(s))
             
             # Read atoms in the CIF
             labels = data['_atom_site_label']
