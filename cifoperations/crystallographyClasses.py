@@ -172,10 +172,14 @@ class crystalStructure:
         self.XYZ_Mbt_ABC = np.transpose(np.linalg.inv(self.XYZ_Mct_ABC))
         
     def _read_CIF(self):
+        """Reads a structure from a CIF-file.
+        If self.block is not set, the first data block in the structure is used.
+        """
         
         if self.cifFile is not None:
             
             cf = CifFile.ReadCif(self.cifFile)
+            if self.block is None: self.block = cf.keys()[0]
             data = cf[self.block]
             self.cifData = data
             _look_for_magnetic_atoms = True
