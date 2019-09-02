@@ -1,5 +1,6 @@
 import CifFile
 import numpy as np
+import os
 from cifoperations import formFactors as ff
 from cifoperations import crystallographyDatabase as CD
 from cifoperations.symmetry import _read_symmop
@@ -197,11 +198,13 @@ class crystalStructure:
             self.gamma, self.dgamma = _split_val_sigma(data['_cell_angle_gamma'])
             
             # Read symmetry information
-            #symms = data['_space_group_symop_operation_xyz']
-            #for s in symms:
-            #    self.symmetrystrings.append(s)
-            #    self.equivPositions.append(_read_symmop(s))
-            
+            if '_space_group_symop_operation_xyz' in data.keys():
+                for s in data['_space_group_symop_operation_xyz']:
+                    self.symmetrystrings.append(s)
+                    self.equivPositions.append(_read_symmop(s))
+            else:
+                print('No symmetry information read')
+                
             # Read atoms in the CIF
             labels = data['_atom_site_label']
             x      = data['_atom_site_fract_x']
@@ -278,6 +281,16 @@ class crystalStructure:
                         
         else:
             print('Crystal structure initialized. No CIF file given')
+    
+    def _write_to_xyz(self):
+    
+        with open(os.path.splitext(self.cifFile)[0]+'.xyz', 'w') as f:
+            for atom in self.atoms:
+                XYZ = np.matmul(self.XYZ_Mct_ABC, atom.X)[0]
+                f.write('{:6s}{:>12.6f}{:>12.6f}{:>12.6f}\n'.format(atom.lbl,
+                                                              XYZ[0,0],
+                                                              XYZ[0,1],
+                                                              XYZ[0,2]))
     
     def _write_to_cry(self, _cryname):
         
