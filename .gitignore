@@ -1,2 +1,10 @@
-# Ignoring the PND project-data folder
 projectData
+binary.py 
+cubicEquation.py 
+generalChemistry.py 
+linearAlgebra.py 
+molarMass.py 
+myMaths.py 
+readWebsite.py 
+*.cif 
+*.png 
