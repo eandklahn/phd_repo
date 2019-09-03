@@ -10,3 +10,4 @@ readWebsite.py
 *.png 
 *.lis 
 **__pycache__
+*.pyc 
