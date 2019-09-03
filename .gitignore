@@ -1,1 +1,3 @@
-# Nothing is ignored yet!
+# Ignoring the PND project-data folder
+projectData
+
