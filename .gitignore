@@ -11,3 +11,4 @@ readWebsite.py
 *.lis 
 **__pycache__
 *.pyc 
+git_help.txt 
