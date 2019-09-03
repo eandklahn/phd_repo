@@ -8,3 +8,5 @@ myMaths.py
 readWebsite.py 
 *.cif 
 *.png 
+*.lis 
+**__pycache__
