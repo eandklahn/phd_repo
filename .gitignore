@@ -12,3 +12,4 @@ readWebsite.py
 **__pycache__
 *.pyc 
 git_help.txt 
+*.git 
