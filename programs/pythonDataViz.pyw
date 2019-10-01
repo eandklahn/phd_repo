@@ -90,20 +90,27 @@ class DataViz(QWidget):
     def displayFrameInfo(self):
         
         if self.root is not None:
-        
+            
             frameNo = self.frameNumberBox.value()
+            idx = self.xmlInfo['framestartIndex']+frameNo-1
             
             msg = QMessageBox()
-            
             msg.setStandardButtons(QMessageBox.Ok)
+            msg.setWindowTitle('Frame info for #{}'.format(frameNo))
             
-            info = self.root[self.xmlInfo['framestartIndex']+frameNo-1].attrib
-            print(info)
+            frame = self.root[idx]
+            
             infostr = ''
+            info = frame.attrib
+            for elem in frame.iter():
+                if elem.tag != 'Data':
+                    info.update(elem.attrib)
+                    info.update({elem.tag: elem.text})
+            
             for key, value in info.items():
                 infostr += '{}: {}\n'.format(key, value)
             
-            msg.setText('Frame #: {}\n'.format(frameNo)+infostr)
+            msg.setText(infostr)
             msg.exec_()
             
             

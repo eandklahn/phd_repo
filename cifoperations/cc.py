@@ -89,7 +89,7 @@ class Atom:
         
 class crystalStructure:
 
-    def __init__(self, cifFile=None, blockname=None, P=None, SG=None):
+    def __init__(self, cifFile=None, blockname=None, P=None):
         """
         Initializes a crystal structure.
         cifFile: the name of the CIF-file that has been opened to harvest data (if any)
@@ -100,7 +100,6 @@ class crystalStructure:
         # Initial information
         self.atoms = []
         self.atomdict = {}
-        self.SG = SG
         self.equivPositions = []
         self.symmetrystrings = []
         self.cifFile = cifFile
@@ -122,8 +121,7 @@ class crystalStructure:
         elif P is not None:
             self.a, self.b, self.c = P[:3]
             self.alpha, self.beta, self.gamma = P[3:]
-            self.equivPositions = CD.spaceGroups[SG]
-        
+            
         # Cell information in direct space
         alpha, beta, gamma = np.radians(self.alpha), np.radians(self.beta), np.radians(self.gamma)
         self.G = np.mat([[self.a**2, self.a*self.b*np.cos(gamma), self.a*self.c*np.cos(beta)],
@@ -172,6 +170,9 @@ class crystalStructure:
         # Matrix for basis transformation from crystallographic basis to orthonormal XYZ basis
         self.XYZ_Mbt_ABC = np.transpose(np.linalg.inv(self.XYZ_Mct_ABC))
         
+        # B-matrix (matrix that calculates coordinate transformations from reciprocal space to cartesian axes (ijk-system))
+        self.B = np.matmul(self.IJK_Mct_ABC, self.G_)
+        
     def _read_CIF(self):
         """Reads a structure from a CIF-file.
         If self.block is not set, the first data block in the structure is used.
@@ -184,10 +185,6 @@ class crystalStructure:
             data = cf[self.block]
             self.cifData = data
             _look_for_magnetic_atoms = True
-            
-            # Crystallographic information
-            #self.SG = data['_space_group_name_H-M_alt']
-            #self.crystalsystem = data['_space_group_crystal_system']
             
             # Read cell parameters
             self.a, self.da         = _split_val_sigma(data['_cell_length_a'])
@@ -294,20 +291,15 @@ class crystalStructure:
     
     def _write_to_cry(self, _cryname):
         
-        Acards = []
         Ccards = ['C {:<10.5f}{:<10.5f}{:<10.5f}{:<10.5f}{:<10.5f}{:<10.5f}\n'.format(
                    self.a, self.b, self.c, self.alpha, self.beta, self.gamma)]
-        Dcards = []
-        Fcards = []
-        Icards = []
-        Lcards = []
-        Qcards = []
         Scards = []
+        Icards = []
+        Qcards = []
+        Lcards = []
+        Fcards = []
+        Acards = []
         Tcards = []
-        
-        Dcards.extend(['D WVLN 1.4\n',
-                       'D GEOM 8\n',
-                       'D L/R 1\n'])
         
         Icards.extend(['I DTYP 1\n'])
         
@@ -319,7 +311,7 @@ class crystalStructure:
             Scards.append('S '+s+'\n')
         
         _elements_present = []
-        
+        _magnetic_atoms = []
         for atom in self.atoms:
             if atom.element not in _elements_present:
                 _elements_present.append(atom.element)
@@ -346,18 +338,21 @@ class crystalStructure:
                 Acardstring += '\n'
                 
             if atom._is_magnetic:
+                
                 _lbl = atom.lbl
                 
-                # For now assuming that the magnetic form factor is just the j0-Bessel function
-                _exp_approx = mj0.mj0[atom.ion]
-                Fcards.append(('F {}m 2'+'{:>8.4f}'*7+'\n').format(atom.element,
-                                                              _exp_approx['a'][0],
-                                                              _exp_approx['b'][0],
-                                                              _exp_approx['a'][1],
-                                                              _exp_approx['b'][1],
-                                                              _exp_approx['a'][2],
-                                                              _exp_approx['b'][2],
-                                                              _exp_approx['c']))
+                if atom._type_magnetic_form == 'j0':
+                    _exp_approx = mj0.mj0[atom.ion]
+                    Fcards.append(('F {}m 2'+'{:>8.4f}'*7+'\n').format(atom.element,
+                                                                _exp_approx['a'][0],
+                                                                _exp_approx['b'][0],
+                                                                _exp_approx['a'][1],
+                                                                _exp_approx['b'][1],
+                                                                _exp_approx['a'][2],
+                                                                _exp_approx['b'][2],
+                                                                _exp_approx['c']))
+                elif atom._type_magnetic_form == 'dipole':
+                    Fcards.append('Requiring a magnetic form factor for {}\n'.format(_lbl))
                 
                 Qcards = ['Q {}m FORM {}\n'.format(atom.element, _lbl),
                           'Q {} CHI 0.2 0.2 0.2 0.0 0.0 0.0\n'.format(_lbl)] + Qcards

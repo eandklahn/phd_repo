@@ -4,6 +4,10 @@ import matplotlib.pyplot as plt
 from scipy.stats import moment
 import os
 
+"""
+Contains an attempt at an implementation of the algorithm presented in doi:10.1107/S0021889813006511
+"""
+
 def sb_algorithm(image, k):
     
     # Casting image into a masked array for further processing

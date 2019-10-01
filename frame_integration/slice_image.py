@@ -28,6 +28,18 @@ def read_ub_from_scan(filename):
     
     return UB
 
+def read_wvln_from_scan(filename):
+    """
+    Reads the wavelength that is printed in the header of an HB3A scan-file
+    and returns it as a float"""
+    
+    CL = '' # current line being read
+    with open(filename, 'r') as f:
+        while not CL.startswith('# wavelength'):
+            CL = f.readline()
+    
+    return float(CL.strip().split()[-1])
+
 def nielsen(image,k):
     
     _shape_in = image.shape
@@ -351,7 +363,9 @@ def get_real_peak_region(filepath_up, filepath_dw, sigma=3, shape_in=None):
     return padded_peak_region
     
 def get_flipping_ratio(filepath_up, filepath_dw, sigma=3, shape_in=None):
-
+    
+    make_figure = False
+    
     image_up, metadata = load_image_from_scan(filepath_up)
     image_dw = load_image_from_scan(filepath_dw)[0]
     
@@ -366,22 +380,23 @@ def get_flipping_ratio(filepath_up, filepath_dw, sigma=3, shape_in=None):
         metadata['rejection'] = 'no peak'
         return 0, 0, metadata
     else:
-        #min_val = min(image_up.min(), image_dw.min())
-        #max_val = max(image_up.max(), image_dw.max())
-        #
-        #f, ax = plt.subplots(ncols=2, nrows=3)
-        #ax[0,0].imshow(image_up, vmin=min_val, vmax=max_val)
-        #ax[0,1].imshow(image_dw, vmin=min_val, vmax=max_val)
-        #ax[1,0].imshow(np.where(padded_peak_region, image_up, 0),
-        #               vmin=min_val,
-        #               vmax=max_val)
-        #ax[1,1].imshow(np.where(padded_peak_region, image_dw, 0),
-        #               vmin=min_val,
-        #               vmax=max_val)
-        #ax[2,0].imshow(padded_peak_region)
-        #ax[2,1].imshow(background)
-        #f.tight_layout()
-        #plt.show()
+        if make_figure:
+            min_val = min(image_up.min(), image_dw.min())
+            max_val = max(image_up.max(), image_dw.max())
+            
+            f, ax = plt.subplots(ncols=2, nrows=3)
+            ax[0,0].imshow(image_up, vmin=min_val, vmax=max_val)
+            ax[0,1].imshow(image_dw, vmin=min_val, vmax=max_val)
+            ax[1,0].imshow(np.where(padded_peak_region, image_up, 0),
+                        vmin=min_val,
+                        vmax=max_val)
+            ax[1,1].imshow(np.where(padded_peak_region, image_dw, 0),
+                        vmin=min_val,
+                        vmax=max_val)
+            ax[2,0].imshow(padded_peak_region)
+            ax[2,1].imshow(background)
+            f.tight_layout()
+            plt.show()
         
         i_up, s_up = get_intensity_from_image(image_up,
                                             padded_peak_region,
@@ -441,147 +456,87 @@ def plot_intensity_histogram(image, start=0, normed=False):
     plt.bar((bins[:-1]+bins[1:])/2, data, width=0.95)
     plt.show()
 
-def process_scan(exp, scan, wvln, mag_field, polarisation, radius):
-
+def process_scan(folder, exp, scan, file_out, mag_field, pol, radius=10):
+    """
+    Processes a scan from HB3A to extract flipping ratios into a file
     
-    # Setting up file list
-    file_directory = ('C:\\Users\\Emil\\Documents\\Uddannelse\\'
-                    + 'PhD\\PND susceptibility\\Co_PND_HFIR\\'
-                    + 'HFIR, E18\\Data download\\HB3A\\exp715\\Datafiles\\'
-                    )
+    folder: directory with data files from HB3A
+    exp: experiment number
+    scan: scan number
+    file_out: path of file that should contain final flipping ratios
+    radius: radius of circle used for adding a padding to the peak region
+    mag_field: magnitude of magnetic field in Tesla
+    pol: polarisation value
     
-    
-if __name__ == '__main__':
-        
-    # Experiment numbers
-    exp = 715
-    scan = 73
-    refln_number = 5
-    sigma_used = 1
-    wvln = 2.55
-    mag_field = 0.78
-    polarisation = 0.94
-    radius=10
-    
-    
-    # Setting up file list
-    file_directory = ('C:\\Users\\Emil\\Documents\\Uddannelse\\'
-                    + 'PhD\\PND susceptibility\\Co_PND_HFIR\\'
-                    + 'HFIR, E18\\Data download\\HB3A\\exp715\\Datafiles\\'
-                    )
+    No returned values
+    """
     
     scanfile = 'HB3A_exp{0:04d}_scan{1:04d}.dat'.format(exp, scan)
     file_beginning = 'HB3A_exp{0}_scan{1:04d}_'.format(exp, scan)
     
-    ub = read_ub_from_scan(file_directory+scanfile).T.flatten(order='F')
+    ub_matrix = read_ub_from_scan(folder+scanfile)
+    wvln = read_wvln_from_scan(folder+scanfile)
+    P = np.matmul(np.linalg.inv(ub_matrix), np.array([[0],[0],[1]]))
+    P = P/np.linalg.norm(P)
+    
+    # Getting the shape used to punch out areas of the frame
     fill_shape = create_circle_shape(radius)
     
+    # Setting up file list
     files = [f for f in os.listdir(file_directory)
-            if f.startswith(file_beginning)
-            ]
-            
-    files = [(files[int(2*n)], files[int(2*n+1)])
-            for n in range(int(len(files)/2))
-            ]
+        if f.startswith(file_beginning)
+        ]
     
-    """Run through multiple files"""
-    n_list = [34,44,50,67,82,91,95,97,99,131,144,145,146,147,148,159,162,164,170]
-    w_list = [37, ]
-    refln_number = 44
-    all_peaks = np.zeros((256, 256))
-    for refln_number in range(len(files)):
-        print(refln_number)
-        image_up = load_image_from_scan(file_directory+files[refln_number][0])[0]
-        image_dw = load_image_from_scan(file_directory+files[refln_number][1])[0]
+    files = [(file_directory+files[n], file_directory+files[n+1]) for n in range(0,len(files),2)]
     
-    #f, ax = plt.subplots(nrows=2,ncols=2)
-    #ax[0,0].imshow(image_up)
-    #ax[0,1].imshow(image_up)
-    #ax[1,0].imshow(gaussian_filter(image_up, 1))
-    #ax[1,1].imshow(gaussian_filter(image_dw, 1))
-    #plt.show()
+    reflections = []
+    for i, t in enumerate(files):
+        print('Extracting image data from image {}/{}'.format(i+1, len(files)), end='\r')
+        reflections.append(get_flipping_ratio(t[0], t[1], shape_in=fill_shape))        
     
-        peak_region_boolean = get_common_peak(image_up, image_dw, sigma_in=1)
-        peak_border_boolean = get_peak_border(peak_region_boolean)
-        peak_padding = add_padding_w_circles(peak_border_boolean, fill_shape)
-        padded_peak_region = np.logical_or(peak_padding, peak_region_boolean)
-        padded_peak_region = punch_out_border_and_small_patches(padded_peak_region, fill_shape)
-        background = make_too_large_background(padded_peak_region)
-        background, padded_peak_region = remove_background_border_patches(background, padded_peak_region, fill_shape)
-        #all_peaks = np.logical_or(all_peaks, padded_peak_region)
+    with open(file_out, 'w') as f:
+        f.write('#Wavelength{:>8.4f}\n'.format(wvln))
+        f.write('#Orientation')
+        f.write((9*'{:>8.4f}').format(*ub_matrix.T.flatten(order='F')))
+        f.write('\n')
+        f.write('#Polarisation{:>8.4f}{:>8.4f}{:>8.4f}{:>8.4f}{:>8.4f}\n'.format(P[0,0],
+                                                                                 P[1,0],
+                                                                                 P[2,0],
+                                                                                 polarisation,
+                                                                                 -polarisation))
+        f.write('#Magnetic_field{:>8.4f}\n'.format(mag_field))
+        for r in reflections:
+            if r[2].get('rejection') is None and abs(r[0]-1)>2*r[1]:
+                f.write('{:>5d}{:>5d}{:>5d}{:>10.4f}{:>10.4f}\n'.format(
+                        r[2]['h'],
+                        r[2]['k'],
+                        r[2]['l'],
+                        r[0],
+                        r[1])
+                        )    
+if __name__ == '__main__':
+        
+    # Experiment variables
+    exp = 715
+    scan = 113 # or 73
+    mag_field = 0.78
+    polarisation = 0.94
     
-    #fig, ax = plt.subplots(ncols=2)
-    #ax[0].imshow(padded_peak_region)
-    #ax[1].imshow(background)
-    #plt.show()
+    file_directory = '''C:\\Users\\Emil\\Documents\\Uddannelse\\PhD\\pnd_susceptibility\\CoCl2(tu)4\\HFIR, E18\\Data download\\HB3A\\exp715\\Datafiles\\'''
+    save_to_file = '''C:\\Users\\Emil\\Desktop\\rfl{}.ext'''.format(scan)
     
-    #fig, ax = plt.subplots(ncols=3)
-    #ax[0].imshow(peak_region_boolean)
-    #ax[1].imshow(padded_peak_region)
-    #ax[2].imshow(background)
-    #plt.show()
+    process_scan(file_directory,
+                 exp,
+                 scan,
+                 save_to_file,
+                 mag_field,
+                 polarisation)
     
-        f, ax = plt.subplots(ncols=2)
-        ax[0].imshow(padded_peak_region)
-        ax[1].imshow(image_dw)
-        ax[0].add_patch(ptc.Rectangle(xy=(67,60), width=110, height=130, alpha=0.5, color='g'))
-        ax[1].add_patch(ptc.Rectangle(xy=(67,60), width=110, height=130, alpha=0.5, color='g'))
-        plt.show()
-    
-    """Plot all detected peak areas"""
-    #fig, ax = plt.subplots()
-    #ax.imshow(all_peaks)
-    #ax.add_patch(ptc.Rectangle(xy=(67,60), width=110, height=130, alpha=0.5, color='g'))
-    #plt.show()
-    
-    """Legacy"""
-    #for refln_number in range(len(files)):
-    #    print(refln_number)
-    #    image_up = load_image_from_scan(file_directory+files[refln_number][0])[0]
-    #    image_dw = load_image_from_scan(file_directory+files[refln_number][1])[0]
-    #    common_peak = get_common_peak(image_up, image_dw)
-    #    peak_border = get_peak_border(common_peak)
-    #    peak_padding = add_padding_w_circles(peak_border, fill_shape)
-    #    peak_padding = punch_out_border_and_small_patches(peak_padding, fill_shape)
-    #    if np.sum(common_peak) <= np.sum(fill_shape):
-    #        continue
-    #    else:
-    #        plt.imshow(peak_padding)
-    #        plt.show()
-    
-    #get_flipping_ratio(file_directory+files[refln_number][0],
-    #                   file_directory+files[refln_number][1],
-    #                   sigma=sigma_used,
-    #                   shape_in=fill_shape)
-    
-    #image_dw = load_image_from_scan(file_directory+files[refln_number][1])[0]
-    #common_peak = get_common_peak(image_up, image_dw)
-    #peak_border = get_peak_border(common_peak)
-    #peak_padding = add_padding_w_circles(peak_border, fill_shape)
-    #padded_peak_region = np.logical_or(peak_padding, common_peak)
-    #lw, num = measurements.label(padded_peak_region)
-    #patches = [np.where(lw==n, True, False) for n in range(num+1)]
-    #print(patches)
-    #remove_these = []
-    #for i, p in enumerate(patches):
-    #    if np.sum(p) == np.sum(fill_shape):
-    #        remove_these.append(i)
-    #for i in remove_these[::-1]:
-    #    patches.pop(i)
-    #sizes = [np.sum(p) for p in patches]
-    #patches.pop(sizes.index(max(sizes)))
-    #for p in patches:
-    #    remove_border_patches(p)
+    # EVERYTHING BELOW THIS LINE IS FOR TRIAL AND ERROR. Be careful about changing.
+    #scanfile = 'HB3A_exp{0:04d}_scan{1:04d}.dat'.format(exp, scan)
+    #file_beginning = 'HB3A_exp{0}_scan{1:04d}_'.format(exp, scan)
     #
-    #patches = [p for p in patches if np.sum(p)>0]
-    #try:
-    #    padded_peak_region = patches[0]
-    #    background = make_too_large_background(padded_peak_region)
-    #    plt.imshow(padded_peak_region)
-    #    plt.show()
-    #except IndexError:
-    #    print('No peak survived!')
-    #remove_border_patches(padded_peak_region)
-    
-            
+    #ub = read_ub_from_scan(file_directory+scanfile).T.flatten(order='F')
+    #fill_shape = create_circle_shape(radius)
+    #
     

@@ -1,4 +1,9 @@
+# Folders
 projectData
+molmag_overview 
+**__pycache__
+
+# Files
 binary.py 
 cubicEquation.py 
 generalChemistry.py 
@@ -6,11 +11,11 @@ linearAlgebra.py
 molarMass.py 
 myMaths.py 
 readWebsite.py 
+git_help.txt
+
+# File types
 *.cif 
 *.png 
 *.lis 
-**__pycache__
 *.pyc 
-git_help.txt
 *.ext 
-molmag_overview 
