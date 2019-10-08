@@ -18,7 +18,6 @@ def _split_val_sigma(val):
     except IndexError:
         # Because sometimes there is no error on the value,
         # so asking for element 1 after splitting gives an IndexError
-    
         sig = 0
 
     return (float(val), float(sig))
@@ -89,7 +88,7 @@ class Atom:
         
 class crystalStructure:
 
-    def __init__(self, cifFile=None, blockname=None, P=None):
+    def __init__(self, input, blockname=None):
         """
         Initializes a crystal structure.
         cifFile: the name of the CIF-file that has been opened to harvest data (if any)
@@ -102,26 +101,37 @@ class crystalStructure:
         self.atomdict = {}
         self.equivPositions = []
         self.symmetrystrings = []
-        self.cifFile = cifFile
-        self.block = blockname
+        
+        # Information to be set if the input is a CIF
+        self.cifFile = None
         self.cifData = None
+        self.block = blockname
         
         # Cell parameters in direct space
         self.P = 0
-        self.a, self.da         = 0,0
-        self.b, self.db         = 0,0
-        self.c, self.dc         = 0,0
-        self.alpha, self.dalpha = 0,0
-        self.beta, self.dbeta   = 0,0
-        self.gamma, self.dgamma = 0,0
+        self.a, self.da         = 1,0
+        self.b, self.db         = 1,0
+        self.c, self.dc         = 1,0
+        self.alpha, self.dalpha = 90,0
+        self.beta, self.dbeta   = 90,0
+        self.gamma, self.dgamma = 90,0
         
-        # Calling functions to initialize
-        if cifFile is not None:
+        self.handle_input(input)
+        self.calculate_matrices()
+        
+    def handle_input(self, input):
+        
+        if isinstance(input, str):
+            self.cifFile = input
             self._read_CIF()
-        elif P is not None:
-            self.a, self.b, self.c = P[:3]
-            self.alpha, self.beta, self.gamma = P[3:]
-            
+        elif isinstance(input, list):
+            self.a, self.b, self.c = input[:3]
+            self.alpha, self.beta, self.gamma = input[3:]
+        else:
+            print('Crystal structure initialized without input')
+        
+    def calculate_matrices(self):
+        
         # Cell information in direct space
         alpha, beta, gamma = np.radians(self.alpha), np.radians(self.beta), np.radians(self.gamma)
         self.G = np.mat([[self.a**2, self.a*self.b*np.cos(gamma), self.a*self.c*np.cos(beta)],
@@ -147,6 +157,11 @@ class crystalStructure:
         
         p = np.sqrt(1-(q**2+r**2))
         
+        # Matrix for coordinate transformation from crystallographic basis to orthonormal XYZ basis
+        self.XYZ_Mct_ABC = np.mat([[self.a, self.b*np.cos(gamma), self.c*np.cos(beta)                                                ],
+                                   [0     , self.b*np.sin(gamma), self.c*((np.cos(alpha) - np.cos(beta)*np.cos(gamma))/np.sin(gamma))],
+                                   [0     , 0                   , self.V/(self.a*self.b*np.sin(gamma))                               ]])
+        
         # Matrix for basis transformation from orthonormal CCSL basis to crystallographic basis
         # This is the basis transformation matrix (called 'M' in Giacovazzo) from the basis ijk to the basis abc
         self.ABC_Mbt_IJK = np.mat([[self.a*p, self.a*q,                  self.a*r                 ],
@@ -162,123 +177,130 @@ class crystalStructure:
         # Matrix for coordinate transformation from crystallographic basis to orthonormal CCSL basis
         self.IJK_Mct_ABC = np.transpose(self.ABC_Mbt_IJK)
         
-        # Matrix for coordinate transformation from crystallographic basis to orthonormal XYZ basis
-        self.XYZ_Mct_ABC = np.mat([[self.a, self.b*np.cos(gamma), self.c*np.cos(beta)                                                ],
-                                   [0     , self.b*np.sin(gamma), self.c*((np.cos(alpha) - np.cos(beta)*np.cos(gamma))/np.sin(gamma))],
-                                   [0     , 0                   , self.V/(self.a*self.b*np.sin(gamma))                               ]])
         
         # Matrix for basis transformation from crystallographic basis to orthonormal XYZ basis
         self.XYZ_Mbt_ABC = np.transpose(np.linalg.inv(self.XYZ_Mct_ABC))
         
         # B-matrix (matrix that calculates coordinate transformations from reciprocal space to cartesian axes (ijk-system))
         self.B = np.matmul(self.IJK_Mct_ABC, self.G_)
-        
+    
     def _read_CIF(self):
         """Reads a structure from a CIF-file.
         If self.block is not set, the first data block in the structure is used.
         """
         
-        if self.cifFile is not None:
-            
-            cf = CifFile.ReadCif(self.cifFile)
-            if self.block is None: self.block = cf.keys()[0]
-            data = cf[self.block]
-            self.cifData = data
-            _look_for_magnetic_atoms = True
-            
-            # Read cell parameters
-            self.a, self.da         = _split_val_sigma(data['_cell_length_a'])
-            self.b, self.db         = _split_val_sigma(data['_cell_length_b'])
-            self.c, self.dc         = _split_val_sigma(data['_cell_length_c'])
-            self.alpha, self.dalpha = _split_val_sigma(data['_cell_angle_alpha'])
-            self.beta, self.dbeta   = _split_val_sigma(data['_cell_angle_beta'])
-            self.gamma, self.dgamma = _split_val_sigma(data['_cell_angle_gamma'])
-            
-            # Read symmetry information
-            if '_space_group_symop_operation_xyz' in data.keys():
-                for s in data['_space_group_symop_operation_xyz']:
-                    self.symmetrystrings.append(s)
-                    self.equivPositions.append(_read_symmop(s))
-            else:
-                print('No symmetry information read')
-                
-            # Read atoms in the CIF
-            labels = data['_atom_site_label']
-            x      = data['_atom_site_fract_x']
-            y      = data['_atom_site_fract_y']
-            z      = data['_atom_site_fract_z']
-            U_type = data['_atom_site_adp_type']
-            U_iso  = data['_atom_site_U_iso_or_equiv']
-            Occ    = data['_atom_site_occupancy']
-            
-            Uatomlbl = data['_atom_site_aniso_label']
-            U11      = data['_atom_site_aniso_U_11']
-            U22      = data['_atom_site_aniso_U_22']
-            U33      = data['_atom_site_aniso_U_33']
-            U23      = data['_atom_site_aniso_U_23']
-            U13      = data['_atom_site_aniso_U_13']
-            U12      = data['_atom_site_aniso_U_12']
-            
-            
-            try:
-                _chi_atom_lbl = data['_atom_site_moment.label']
-                _chi_atom_11 = data['_atom_site_moment.chi_11']
-                _chi_atom_22 = data['_atom_site_moment.chi_22']
-                _chi_atom_33 = data['_atom_site_moment.chi_33']
-                _chi_atom_23 = data['_atom_site_moment.chi_23']
-                _chi_atom_13 = data['_atom_site_moment.chi_13']
-                _chi_atom_12 = data['_atom_site_moment.chi_12']
-                _chi_atom_determination = data['_atom_site_moment.determination']
-            except KeyError:
-                _look_for_magnetic_atoms = False
-            
-            for i in range(len(labels)):
-                xi, dxi = _split_val_sigma(x[i])
-                yi, dyi = _split_val_sigma(y[i])
-                zi, dzi = _split_val_sigma(z[i])
-                
-                lbl = labels[i]
-                # Position X is saved as a column vector
-                X  = np.array([xi, yi, zi])
-                dX  = np.array([dxi, dyi, dzi])
-                Utype = U_type[i]
-                occ, docc = _split_val_sigma(Occ[i])
-                
-                # Reading the vibrational parameters of the i'th atom based on the Utype
-                if Utype == 'Uiso':
-                    U, dU = _split_val_sigma(U_iso[i])
-                elif Utype == 'Uani':
-                    Uani_index = Uatomlbl.index(lbl)
-                    U, dU = np.zeros(6), np.zeros(6)
-                    U[0], dU[0] = _split_val_sigma(U11[Uani_index])
-                    U[1], dU[1] = _split_val_sigma(U22[Uani_index])
-                    U[2], dU[2] = _split_val_sigma(U33[Uani_index])
-                    U[3], dU[3] = _split_val_sigma(U23[Uani_index])
-                    U[4], dU[4] = _split_val_sigma(U13[Uani_index])
-                    U[5], dU[5] = _split_val_sigma(U12[Uani_index])
-                
-                _current_atom = Atom(lbl, X, dX, Utype, U, dU, occ, docc)
-                setattr(self, lbl, _current_atom)
-                self.atoms.append(_current_atom)
-                self.atomdict[lbl] = i
-            
-            if _look_for_magnetic_atoms:
-                for atom in self.atoms:
-                    if atom.lbl in _chi_atom_lbl:
-                        atom._is_magnetic = True
-                        index = _chi_atom_lbl.index(atom.lbl)
-                        atom._magX, atom._dmagX = np.zeros(6), np.zeros(6)
-                        atom._magX[0], atom._dmagX[0] = _split_val_sigma(_chi_atom_11[index])
-                        atom._magX[1], atom._dmagX[1] = _split_val_sigma(_chi_atom_22[index])
-                        atom._magX[2], atom._dmagX[2] = _split_val_sigma(_chi_atom_33[index])
-                        atom._magX[3], atom._dmagX[3] = _split_val_sigma(_chi_atom_23[index])
-                        atom._magX[4], atom._dmagX[4] = _split_val_sigma(_chi_atom_13[index])
-                        atom._magX[5], atom._dmagX[5] = _split_val_sigma(_chi_atom_12[index])
-                        atom._magX_determined_by = _chi_atom_determination[index]
-                        
+        split_path = os.path.split(self.cifFile)
+        orig_path = os.getcwd()
+        os.chdir(split_path[0])
+        cf = CifFile.ReadCif(split_path[1])
+        os.chdir(orig_path)
+        
+        if self.block is None: self.block = cf.keys()[0]
+        data = cf[self.block]
+        self.cifData = data
+        _look_for_magnetic_atoms = True
+        
+        # Read cell parameters
+        self.a, self.da         = _split_val_sigma(data['_cell_length_a'])
+        self.b, self.db         = _split_val_sigma(data['_cell_length_b'])
+        self.c, self.dc         = _split_val_sigma(data['_cell_length_c'])
+        self.alpha, self.dalpha = _split_val_sigma(data['_cell_angle_alpha'])
+        self.beta, self.dbeta   = _split_val_sigma(data['_cell_angle_beta'])
+        self.gamma, self.dgamma = _split_val_sigma(data['_cell_angle_gamma'])
+        
+        # Read symmetry information
+        if '_space_group_symop_operation_xyz' in data.keys():
+            for s in data['_space_group_symop_operation_xyz']:
+                self.symmetrystrings.append(s)
+                self.equivPositions.append(_read_symmop(s))
         else:
-            print('Crystal structure initialized. No CIF file given')
-    
+            print('No symmetry information read')
+            
+        # Read atoms in the CIF
+        labels = data['_atom_site_label']
+        x      = data['_atom_site_fract_x']
+        y      = data['_atom_site_fract_y']
+        z      = data['_atom_site_fract_z']
+        U_type = data['_atom_site_adp_type']
+        U_iso  = data['_atom_site_U_iso_or_equiv']
+        Occ    = data['_atom_site_occupancy']
+        
+        Uatomlbl = data['_atom_site_aniso_label']
+        U11      = data['_atom_site_aniso_U_11']
+        U22      = data['_atom_site_aniso_U_22']
+        U33      = data['_atom_site_aniso_U_33']
+        U23      = data['_atom_site_aniso_U_23']
+        U13      = data['_atom_site_aniso_U_13']
+        U12      = data['_atom_site_aniso_U_12']
+        
+        
+        try:
+            _chi_atom_lbl = data['_atom_site_moment.label']
+            _chi_atom_11 = data['_atom_site_moment.chi_11']
+            _chi_atom_22 = data['_atom_site_moment.chi_22']
+            _chi_atom_33 = data['_atom_site_moment.chi_33']
+            _chi_atom_23 = data['_atom_site_moment.chi_23']
+            _chi_atom_13 = data['_atom_site_moment.chi_13']
+            _chi_atom_12 = data['_atom_site_moment.chi_12']
+            _chi_atom_determination = data['_atom_site_moment.determination']
+        except KeyError:
+            _look_for_magnetic_atoms = False
+        
+        for i in range(len(labels)):
+            xi, dxi = _split_val_sigma(x[i])
+            yi, dyi = _split_val_sigma(y[i])
+            zi, dzi = _split_val_sigma(z[i])
+            
+            lbl = labels[i]
+            # Position X is saved as a column vector
+            X  = np.array([xi, yi, zi])
+            dX  = np.array([dxi, dyi, dzi])
+            Utype = U_type[i]
+            occ, docc = _split_val_sigma(Occ[i])
+            
+            # Reading the vibrational parameters of the i'th atom based on the Utype
+            if Utype == 'Uiso':
+                U, dU = _split_val_sigma(U_iso[i])
+            elif Utype == 'Uani':
+                Uani_index = Uatomlbl.index(lbl)
+                U, dU = np.zeros(6), np.zeros(6)
+                U[0], dU[0] = _split_val_sigma(U11[Uani_index])
+                U[1], dU[1] = _split_val_sigma(U22[Uani_index])
+                U[2], dU[2] = _split_val_sigma(U33[Uani_index])
+                U[3], dU[3] = _split_val_sigma(U23[Uani_index])
+                U[4], dU[4] = _split_val_sigma(U13[Uani_index])
+                U[5], dU[5] = _split_val_sigma(U12[Uani_index])
+            
+            _current_atom = Atom(lbl, X, dX, Utype, U, dU, occ, docc)
+            setattr(self, lbl, _current_atom)
+            self.atoms.append(_current_atom)
+            self.atomdict[lbl] = i
+        
+        if _look_for_magnetic_atoms:
+            for atom in self.atoms:
+                if atom.lbl in _chi_atom_lbl:
+                    atom._is_magnetic = True
+                    index = _chi_atom_lbl.index(atom.lbl)
+                    atom._magX, atom._dmagX = np.zeros(6), np.zeros(6)
+                    atom._magX[0], atom._dmagX[0] = _split_val_sigma(_chi_atom_11[index])
+                    atom._magX[1], atom._dmagX[1] = _split_val_sigma(_chi_atom_22[index])
+                    atom._magX[2], atom._dmagX[2] = _split_val_sigma(_chi_atom_33[index])
+                    atom._magX[3], atom._dmagX[3] = _split_val_sigma(_chi_atom_23[index])
+                    atom._magX[4], atom._dmagX[4] = _split_val_sigma(_chi_atom_13[index])
+                    atom._magX[5], atom._dmagX[5] = _split_val_sigma(_chi_atom_12[index])
+                    atom._magX_determined_by = _chi_atom_determination[index]
+        
+    def distance_between(self, atom1, atom2):
+        
+        try:
+            atom1_X = self.__dict__[atom1].X
+            atom2_X = self.__dict__[atom2].X
+            diff = atom1_X - atom2_X
+            x = np.matmul(diff, np.matmul(self.G, np.transpose(diff.T)).T)
+            return np.sqrt(float(x))
+        except KeyError as ke:
+            print('{} does not exist in the structure'.format(ke))
+            
     def _write_to_xyz(self):
     
         with open(os.path.splitext(self.cifFile)[0]+'.xyz', 'w') as f:
@@ -304,7 +326,7 @@ class crystalStructure:
         Icards.extend(['I DTYP 1\n'])
         
         Lcards.extend(['L SCAL 1.000 1.000 1.000 1.000\n',
-                       'L FIX SCAL 1\n',
+                       'L FIX SCAL 1 1 1 1\n',
                        'L MODE 5 REFI 5 WGHT 2\n'])
         
         for s in self.symmetrystrings:
@@ -352,8 +374,23 @@ class crystalStructure:
                                                                 _exp_approx['b'][2],
                                                                 _exp_approx['c']))
                 elif atom._type_magnetic_form == 'dipole':
-                    Fcards.append('Requiring a magnetic form factor for {}\n'.format(_lbl))
-                
+                    """
+                    Going into this section prints F-cards for all magnetic atoms.
+                    Some of these atoms may be exactly the same, and must probably
+                    then be removed from the cry-file afterwards.
+                    """
+                    atomL = atom._angular_L
+                    atomS = atom._angular_S
+                    atomJ = atom._angular_J
+                    s = np.linspace(0,1.6,20)
+                    f = ff.magF_(atom.ion, s, L=atomL, S=atomS, J=atomJ, type='dipole')
+                    s, f = list(s), list(f)
+                    for n in range(0,20,5):
+                        sf_temp = zip(s[n:n+5],f[n:n+5])
+                        sf_temp = [l for sub in sf_temp for l in sub]
+                        Fcards.append(
+                        ('F {}m 3'+'{:>5.2f}{:>10.6f}'*5+'\n').format(atom.element,*sf_temp))
+                    
                 Qcards = ['Q {}m FORM {}\n'.format(atom.element, _lbl),
                           'Q {} CHI 0.2 0.2 0.2 0.0 0.0 0.0\n'.format(_lbl)] + Qcards
                 Lcards = ['L FIX {} CH11\n'.format(_lbl),
@@ -372,16 +409,15 @@ class crystalStructure:
         
         Qcards = ['Q STYP PARA\n'] + Qcards
         
-        cards = Ccards+Scards+Icards+Qcards+Lcards+Dcards+Fcards+Acards+Tcards
+        cards = Ccards+Scards+Icards+Qcards+Lcards+Fcards+Acards+Tcards
         f = open(_cryname, 'w')
         for card in cards:
             f.write(card)
         f.close()
-        
     
     def _get_params(self):
     
-        return [self.a, self.b, self.c, self.alpha, self.beta, self.gamma]
+        return (self.a, self.b, self.c, self.alpha, self.beta, self.gamma)
     
     def _show_atom(self, lbl, position=True, vibration=True):
         """
@@ -444,7 +480,6 @@ class crystalStructure:
         
         return d
 
-    
     def _calculate_Wj(self, U, Utype, R, H):
         """
         Takes the U, Utype, rotation operator and reflection coordinates and calculates
@@ -601,7 +636,7 @@ class crystalStructure:
             print(atom.lbl)
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':    
 
     from calculateCHILSQRs import readCHILSQ_FRs
 

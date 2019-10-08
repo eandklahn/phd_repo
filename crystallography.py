@@ -1,6 +1,11 @@
 import numpy as np
 from numpy import cos, sin, arcsin, radians, sqrt, pi as PI
-from cifoperations import crystallographyClasses as cc
+from cifoperations import cc
+
+"""
+Giacovazzo:
+Giacovazzo, C., Fundamentals of crystallography. 3. ed. ed.; Oxford University Press: Oxford, 2011
+"""
 
 def rota(a):
 
@@ -101,3 +106,96 @@ def q_from_hkl(h,k,l,L,params):
     q = q_from_theta(t,L)
     
     return q
+
+def calculate_reciprocal_lattice(a,b,c,A,B,C):
+    """
+    Calculates reciprocal lattice parameters based
+    on the given direct lattice parameters
+    
+    a,b,c : floats
+            unit cell side lengths
+    A,B,C : floats
+            alpha, beta, gamma angles in degrees
+    
+    Returns
+    ----------
+    t : tuple
+        A tuple containing (a_, b_, c_, A_, B_, C_) which are
+        a, b, c, alpha, beta, gamma for the reciprocal lattice
+        with the angles in degrees
+    """
+    
+    G = calculate_G_matrix(a,b,c,A,B,C)
+    V = np.sqrt(np.linalg.det(G))
+    
+    a_ = b*c*np.sin(np.radians(A))/V
+    b_ = a*c*np.sin(np.radians(B))/V
+    c_ = a*b*np.sin(np.radians(C))/V
+    
+    A_ = np.degrees(np.arcsin(V/(a*b*c*np.sin(np.radians(B))*np.sin(np.radians(C)))))
+    B_ = np.degrees(np.arcsin(V/(a*b*c*np.sin(np.radians(A))*np.sin(np.radians(C)))))
+    C_ = np.degrees(np.arcsin(V/(a*b*c*np.sin(np.radians(A))*np.sin(np.radians(B)))))
+    
+    return (a_, b_, c_, A_, B_, C_)
+    
+def calculate_G_matrix(a,b,c,A,B,C):
+    """
+    Calculates the G-matrix (metric matrix) in Giacovazzo
+    based on the given direct unit cell parameters
+    
+    a,b,c : floats
+            unit cell side lengths
+    A,B,C : floats
+            alpha, beta, gamma angles in degrees
+    
+    Returns
+    ----------
+    G : array
+        A 3x3-array with the G-matrix
+    """
+    
+    G11 = a**2
+    G12 = a*b*np.cos(np.radians(C))
+    G13 = a*c*np.cos(np.radians(B))
+    G22 = b**2
+    G23 = b*c*np.cos(np.radians(A))
+    G33 = c**2
+    
+    G = np.array([[G11, G12, G13],
+                  [G12, G22, G23],
+                  [G13, G23, G33]])
+    
+    return G
+
+def calculate_B_matrix(a,b,c,A,B,C):
+    """
+    Calculates the B-matrix as given in Busing & Levy
+    (Acta Cryst. (1967). 22, 457)
+    based on the given direct unit cell parameters
+    Reciprocal lattice parameters are given with _ after. (a_, b_, etc.)
+    
+    a,b,c : floats
+            unit cell side lengths
+    A,B,C : floats
+            alpha, beta, gamma angles in degrees
+    
+    Returns
+    ----------
+    B : array
+        A 3x3-array with the B-matrix
+    """
+    
+    a_, b_, c_, A_, B_, C_ = calculate_reciprocal_lattice(a,b,c,A,B,C)
+    
+    B11 = a_
+    B12 = b_*np.cos(np.radians(C_))
+    B13 = c_*np.cos(np.radians(B_))
+    B22 = b_*np.sin(np.radians(C_))
+    B23 = -c_*np.sin(np.radians(B_))*np.cos(np.radians(A))
+    B33 = 1/c
+    
+    B = np.array([[B11, B12, B13],
+                  [  0, B22, B23],
+                  [  0,   0, B33]])
+    
+    return B

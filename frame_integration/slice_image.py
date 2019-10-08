@@ -6,6 +6,7 @@ import os
 from scipy.ndimage.filters import gaussian_filter
 from skimage.feature import canny
 from scipy.ndimage import measurements
+import crystallography as cryst
 
 def read_ub_from_scan(filename):
     """
@@ -39,6 +40,25 @@ def read_wvln_from_scan(filename):
             CL = f.readline()
     
     return float(CL.strip().split()[-1])
+
+def read_lattice_constants_from_scan(filename):
+    """
+    Reads the lattice constants that are printed in the header of an HB3A scan-file
+    and returns a tuple containing them
+
+    Returns
+    ----------
+    t : tuple
+        (a,b,c,A,B,C) as unit cell side lengths
+        and angles alpha, beta, gamma in degrees
+    """
+    
+    CL = '' # current line being read
+    with open(filename, 'r') as f:
+        while not CL.startswith('# latticeconstants'):
+            CL = f.readline()
+    
+    return tuple([float(v) for v in CL.strip().split()[-6:]])
 
 def nielsen(image,k):
     
@@ -456,6 +476,14 @@ def plot_intensity_histogram(image, start=0, normed=False):
     plt.bar((bins[:-1]+bins[1:])/2, data, width=0.95)
     plt.show()
 
+def construct_scan_file_name(exp, scan):
+
+    return 'HB3A_exp{0:04d}_scan{1:04d}.dat'.format(exp, scan)
+
+def construct_data_file_begin(exp, scan):
+
+    return 'HB3A_exp{0}_scan{1:04d}_'.format(exp, scan)
+
 def process_scan(folder, exp, scan, file_out, mag_field, pol, radius=10):
     """
     Processes a scan from HB3A to extract flipping ratios into a file
@@ -464,46 +492,59 @@ def process_scan(folder, exp, scan, file_out, mag_field, pol, radius=10):
     exp: experiment number
     scan: scan number
     file_out: path of file that should contain final flipping ratios
-    radius: radius of circle used for adding a padding to the peak region
     mag_field: magnitude of magnetic field in Tesla
     pol: polarisation value
+    radius: radius of circle used for adding a padding to the peak region
     
     No returned values
     """
     
-    scanfile = 'HB3A_exp{0:04d}_scan{1:04d}.dat'.format(exp, scan)
-    file_beginning = 'HB3A_exp{0}_scan{1:04d}_'.format(exp, scan)
+    scanfile = construct_scan_file_name(exp, scan)
+    file_beginning = construct_data_file_begin(exp, scan)
     
-    ub_matrix = read_ub_from_scan(folder+scanfile)
     wvln = read_wvln_from_scan(folder+scanfile)
-    P = np.matmul(np.linalg.inv(ub_matrix), np.array([[0],[0],[1]]))
+    ub_matrix = read_ub_from_scan(folder+scanfile)
+    lcs = read_lattice_constants_from_scan(folder+scanfile)
+    
+    B = cryst.calculate_B_matrix(*lcs)
+    U_matrix = np.matmul(ub_matrix, np.linalg.inv(B))
+    
+    P = U_matrix[2,:]
     P = P/np.linalg.norm(P)
     
     # Getting the shape used to punch out areas of the frame
     fill_shape = create_circle_shape(radius)
     
     # Setting up file list
-    files = [f for f in os.listdir(file_directory)
+    files = [f for f in os.listdir(folder)
         if f.startswith(file_beginning)
         ]
     
-    files = [(file_directory+files[n], file_directory+files[n+1]) for n in range(0,len(files),2)]
+    files = [(folder+files[n], folder+files[n+1]) for n in range(0,len(files),2)]
     
     reflections = []
     for i, t in enumerate(files):
         print('Extracting image data from image {}/{}'.format(i+1, len(files)), end='\r')
         reflections.append(get_flipping_ratio(t[0], t[1], shape_in=fill_shape))        
+    print()
     
     with open(file_out, 'w') as f:
         f.write('#Wavelength{:>8.4f}\n'.format(wvln))
         f.write('#Orientation')
-        f.write((9*'{:>8.4f}').format(*ub_matrix.T.flatten(order='F')))
+        f.write((9*'{:>8.4f}').format(U_matrix[0,0],
+                                      U_matrix[1,0],
+                                      U_matrix[2,0],
+                                      U_matrix[0,1],
+                                      U_matrix[1,1],
+                                      U_matrix[2,1],
+                                      U_matrix[0,2],
+                                      U_matrix[1,2],
+                                      U_matrix[2,2],
+                                      ))
         f.write('\n')
-        f.write('#Polarisation{:>8.4f}{:>8.4f}{:>8.4f}{:>8.4f}{:>8.4f}\n'.format(P[0,0],
-                                                                                 P[1,0],
-                                                                                 P[2,0],
-                                                                                 polarisation,
-                                                                                 -polarisation))
+        f.write('#Polarisation{:>8.4f}{:>8.4f}{:>8.4f}{:>8.4f}{:>8.4f}\n'.format(*P,
+                                                                                 pol,
+                                                                                 -pol))
         f.write('#Magnetic_field{:>8.4f}\n'.format(mag_field))
         for r in reflections:
             if r[2].get('rejection') is None and abs(r[0]-1)>2*r[1]:

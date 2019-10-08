@@ -1,15 +1,16 @@
-from cifoperations import crystallographyClasses as cc
-import os
 import argparse
+import subprocess
 import numpy as np
+
 from CifFile import ReadCif
+from cifoperations import cc
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(prog='susViewer',
                                      description='Convert chi-tensor to appropriate coordinate system for visualization in standard molecular viewers')
     parser.add_argument('cifname')
-    parser.add_argument('blockname')
+    parser.add_argument('-b', '--blockname')
     parser.add_argument('-s', '--scale')
     parser.add_argument('-r', '--repr')
     
@@ -23,7 +24,10 @@ if __name__ == '__main__':
         _scale = 1
     
     cf = ReadCif(_cifname)
+    if _blockname is None:
+        _blockname = cf.keys()[0]
     structure = cc.crystalStructure(_cifname, blockname=_blockname)
+        
     oMa = np.array([[structure.a_,0,0],
                     [0,structure.b_,0],
                     [0,0,structure.c_]])
@@ -62,4 +66,4 @@ if __name__ == '__main__':
     outfile.write(cf.WriteOut())
     outfile.close()
     
-    os.system(_outname)
+    subprocess.Popen(['mercury', '{}'.format(_outname)])
