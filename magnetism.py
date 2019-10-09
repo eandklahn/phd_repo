@@ -1,5 +1,6 @@
 import numpy as np
-import scientificConstants as SC
+import scipy.constants as sc
+from scipy.constants import physical_constants as pc
 import matplotlib.pyplot as plt
 
 def effHalfSpinG(X, sX, T):
@@ -65,8 +66,15 @@ def brillouinPlot(J, L, S, maxB, maxM, T, minB=1e-6, increments=100):
     
     return (y,B,M)
 
+def XT_product(J, g=-pc['electron g factor'][0]):
 
-
+    Na = sc.Avogadro
+    kB = sc.Boltzmann
+    muB = pc['Bohr magneton'][0]
+    
+    XT = Na*g**2*muB**2/(3*kB)*J*(J+1)
+    
+    return (XT, 'J T^-2 K mol^-1')
 
 
 

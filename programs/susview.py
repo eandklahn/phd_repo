@@ -17,21 +17,30 @@ if __name__ == '__main__':
     _cmd_line_args = parser.parse_args()
     
     _cifname = _cmd_line_args.cifname
+    cf = ReadCif(_cifname)
+    
     _blockname = _cmd_line_args.blockname
     _type = _cmd_line_args.repr
-    _scale = float(_cmd_line_args.scale)
+    _scale = _cmd_line_args.scale
+    structure = cc.crystalStructure(_cifname, blockname=_blockname)
+    
     if _scale is None:
         _scale = 1
-    
-    cf = ReadCif(_cifname)
+    else:
+        _scale = float(_scale)
+    # The following is not obsolete. It is used to find the right block, as not everything can be
+    # done using the structure as loaded from the CIF.
     if _blockname is None:
-        _blockname = cf.keys()[0]
-    structure = cc.crystalStructure(_cifname, blockname=_blockname)
-        
+        _blockname = structure.block
+    if _type is None:
+        _type = 'magn'
+    
     oMa = np.array([[structure.a_,0,0],
                     [0,structure.b_,0],
                     [0,0,structure.c_]])
     
+    # As the crystalStructure-class does not yet provide a method for printing a cry-file
+    # from a structure, I am using the PyCIFRW-representation of the CIF as a dictionary.
     for atom in cf[_blockname]['_atom_site_moment.label']:
         
         _magnetic_atom_X_index = cf[_blockname]['_atom_site_moment.label'].index(atom)
@@ -44,10 +53,10 @@ if __name__ == '__main__':
         _T, _V = np.linalg.eig(_X_tensor)
         
         _ellipsoid = np.zeros((3,3))
-        if _type is not None and _type=='repr':
-            np.fill_diagonal(_ellipsoid, _T)
-        else:
+        if _type=='magn':
             np.fill_diagonal(_ellipsoid, 1/_T**2)
+        elif _type=='repr':
+            np.fill_diagonal(_ellipsoid, _T)
         
         _X_ijk = np.matmul(_V, np.matmul(_ellipsoid, np.transpose(_V)))
         _X_abc = np.matmul(structure.ABC_Mbt_IJK, np.matmul(_X_ijk, np.transpose(structure.ABC_Mbt_IJK)))

@@ -189,10 +189,13 @@ class crystalStructure:
         If self.block is not set, the first data block in the structure is used.
         """
         
-        split_path = os.path.split(self.cifFile)
+        path, file_name = os.path.split(self.cifFile)
+        if path == '':
+            path = os.getcwd()
+            self.cifFile = path+'\\'+self.cifFile
         orig_path = os.getcwd()
-        os.chdir(split_path[0])
-        cf = CifFile.ReadCif(split_path[1])
+        os.chdir(path)
+        cf = CifFile.ReadCif(file_name)
         os.chdir(orig_path)
         
         if self.block is None: self.block = cf.keys()[0]
