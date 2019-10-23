@@ -81,11 +81,17 @@ def readACDATAtoARRAY(fileName, dataOrigin='PPMS'):
     """
     
     colsToUse, rowsToSkip, delimiterToUse = 0, 0, 0
-    if dataOrigin == 'PPMS':
+    if dataOrigin == 'PPMS21':
+        """ (Temperature, Magnetic field, Frequency, Amplitude, M', M'') """
         colsToUse = (2,3,4,5,8,9)
         rowsToSkip = 21
         delimiterToUse = ','
-    
+    # This construct can (maybe) be used to read a data file in the new format (as of 22/10-2019)
+    #elif dataOrigin == 'PPMS34':
+    #    colsToUse = ()
+    #    rowsToSkip = 34
+    #    delimiterToUse = ','
+        
     f = open(fileName, 'r')
     names = f.readlines()
     f.close()

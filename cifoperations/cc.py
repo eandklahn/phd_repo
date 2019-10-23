@@ -24,7 +24,7 @@ def _split_val_sigma(val):
         
 class Atom:
 
-    def __init__(self, label, X, dX, Utype, U, dU, occ, docc, element=None):
+    def __init__(self, label, X, dX, Utype, Uiso, dUiso, occ, docc, U=None, dU=None, element=None):
         """
         Class used to represent an atom in a crystal structure
         
@@ -58,6 +58,8 @@ class Atom:
         self.X = X
         self.dX = dX
         self.Utype = Utype
+        self.Uiso = Uiso
+        self.dUiso = dUiso
         self.U = U
         self.dU = dU
         self.occ = occ
@@ -255,16 +257,15 @@ class crystalStructure:
             zi, dzi = _split_val_sigma(z[i])
             
             lbl = labels[i]
-            # Position X is saved as a column vector
+            # Position X is saved as a row vector
             X  = np.array([xi, yi, zi])
             dX  = np.array([dxi, dyi, dzi])
             Utype = U_type[i]
             occ, docc = _split_val_sigma(Occ[i])
+            Uiso, dUiso = _split_val_sigma(U_iso[i])
             
             # Reading the vibrational parameters of the i'th atom based on the Utype
-            if Utype == 'Uiso':
-                U, dU = _split_val_sigma(U_iso[i])
-            elif Utype == 'Uani':
+            if Utype == 'Uani':
                 Uani_index = Uatomlbl.index(lbl)
                 U, dU = np.zeros(6), np.zeros(6)
                 U[0], dU[0] = _split_val_sigma(U11[Uani_index])
@@ -274,7 +275,9 @@ class crystalStructure:
                 U[4], dU[4] = _split_val_sigma(U13[Uani_index])
                 U[5], dU[5] = _split_val_sigma(U12[Uani_index])
             
-            _current_atom = Atom(lbl, X, dX, Utype, U, dU, occ, docc)
+            # Atom is initialized with the arguments
+            # __init__(self, label, X, dX, Utype, Uiso, dUiso, occ, docc, U=None, dU=None, element=None)
+            _current_atom = Atom(lbl, X, dX, Utype, Uiso, dUiso, occ, docc, U=U, dU=dU)
             setattr(self, lbl, _current_atom)
             self.atoms.append(_current_atom)
             self.atomdict[lbl] = i
@@ -303,7 +306,51 @@ class crystalStructure:
             return np.sqrt(float(x))
         except KeyError as ke:
             print('{} does not exist in the structure'.format(ke))
-            
+            return None
+    
+    def angle_between(self, atom1, atom2, atom3):
+        """
+        Computes the angle between the bonds
+        B1: atom2 --> atom1
+        B2: atom2 --> atom3
+        
+        If atom3 is either 'a', 'b' or 'c', then the angle returned
+        will be the angle between B1 and the crystallographic axis.
+        
+        Returns
+        ----------
+        angle: the requested angle given in degrees
+        """
+        
+        axis_dict = {'a': np.array([1,0,0]),
+                     'b': np.array([0,1,0]),
+                     'c': np.array([0,0,1])}
+        
+        try:
+            atom1 = self.__dict__.get(atom1)
+            atom2 = self.__dict__.get(atom2)
+            B1 = atom1.X - atom2.X
+            B1_norm = self.distance_between(atom1.lbl, atom2.lbl)
+        except KeyError as ke:
+            print('{} is not in the structure.'.format(ke))
+            return None
+        
+        if atom3 in axis_dict:
+            B2 = axis_dict.get(atom3)
+            B2_norm = self.__dict__.get(atom3)
+        elif self.__dict__.get(atom3) is not None:
+            atom3 = self.__dict__.get(atom3)
+            B2 = atom3.X - atom2.X
+            B2_norm = self.distance_between(atom2.lbl, atom3.lbl)
+        else:
+            print('{} is not in the structure.'.format(atom3))
+            return None
+        
+        cos_angle = np.matmul(B1, np.matmul(self.G, B2.T).T)/(B1_norm*B2_norm)
+        angle = np.degrees(np.arccos(cos_angle))
+        
+        return float(angle)
+        
     def _write_to_xyz(self):
     
         with open(os.path.splitext(self.cifFile)[0]+'.xyz', 'w') as f:
@@ -348,7 +395,7 @@ class crystalStructure:
             
             if atom.Utype == 'Uiso':
                 # In this case, the U-value will fit on the A-card
-                Acardstring += float_repr.format(atom.U)
+                Acardstring += float_repr.format(atom.Uiso)
             else:
                 # In this case, a separate T-card has to be made
                 Tcardstring = ('T {: <6s}  3  '+6*float_repr).format(atom.lbl, *atom.U)
@@ -358,7 +405,10 @@ class crystalStructure:
             if atom.occ != 1:
                 sfacstring = '{:>4s}'.format(atom.element)
                 occstring = ' {}'.format(atom.occ)
-                Acardstring = Acardstring + sfacstring + occstring + '\n'
+                uisostring = ''
+                if atom.Utype != 'Uiso':
+                    uisostring = float_repr.format(atom.Uiso)
+                Acardstring = Acardstring + uisostring + sfacstring + occstring + '\n'
             else:
                 Acardstring += '\n'
                 

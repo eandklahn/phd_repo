@@ -58,6 +58,7 @@ if __name__ == '__main__':
         elif _type=='repr':
             np.fill_diagonal(_ellipsoid, _T)
         
+        # The mathematics of this transformation can be found on pp. 206 in Giacovazzo
         _X_ijk = np.matmul(_V, np.matmul(_ellipsoid, np.transpose(_V)))
         _X_abc = np.matmul(structure.ABC_Mbt_IJK, np.matmul(_X_ijk, np.transpose(structure.ABC_Mbt_IJK)))
         _X_o = np.linalg.inv(np.matmul(oMa, np.matmul(_X_abc, oMa)))*_scale

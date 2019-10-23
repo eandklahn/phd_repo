@@ -77,5 +77,6 @@ atomInfo = {'H' : {'atom_no': 1,  'b_neut': -0.374},
             'Co': {'atom_no': 27, 'b_neut': 0.249},
             'Br': {'atom_no': 35, 'b_neut': 0.679},
             'I':  {'atom_no': 53, 'b_neut': 0.528},
-            'Dy': {'atom_no': 66, 'b_neut': 1.69}
+            'Dy': {'atom_no': 66, 'b_neut': 1.69},
+            'Ho': {'atom_no': 67, 'b_neut': 0.844}
             }

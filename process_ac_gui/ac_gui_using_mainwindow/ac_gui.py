@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import time
 from subprocess import Popen, PIPE
+import re
 # OWN ONES
 from process_ac import *
 # EXTERNAL
@@ -76,12 +77,18 @@ class ACGui(QMainWindow):
         
         self.raw_df = None
         self.raw_df_origin = None
+        self.data_header_idx = 0
         self.num_meas_freqs = 0
         self.num_meas_temps = 0
         self.temp_subsets = []
         self.meas_temps = []
         self.Xd_capsule = -1.8*10**-8 # unit: emu/Oe
         self.Xd_film = 6.47*10**-10 # unit: emu/(Oe*mg)
+        self.data_names = {'freq': 'Frequency (Hz)',
+                           'amplitude': 'Amplitude (Oe)',
+                           'mag_field': 'Magnetic Field (Oe)',
+                           'Xp': "X' (emu/(Oe*mol))",
+                           'Xpp': "X'' (emu/(Oe*mol))"}
         
         self.raw_data_fit = None
         
@@ -399,9 +406,9 @@ class ACGui(QMainWindow):
         
         lowest_t_idx = self.meas_temps.argmin()
         
-        v = self.temp_subsets[lowest_t_idx]['Frequency (Hz)']
-        Xp = self.temp_subsets[lowest_t_idx]["X' (emu/(Oe*mol))"]
-        Xpp = self.temp_subsets[lowest_t_idx]["X'' (emu/(Oe*mol))"]
+        v = self.temp_subsets[lowest_t_idx][self.data_names['freq']]
+        Xp = self.temp_subsets[lowest_t_idx][self.data_names['Xp']]
+        Xpp = self.temp_subsets[lowest_t_idx][self.data_names['Xpp']]
         
         tau = 1/(2*np.pi*v[Xpp.idxmax()])
         Xs = 0
@@ -418,11 +425,11 @@ class ACGui(QMainWindow):
         
         for n in range(self.num_meas_freqs):
             
-            line = [self.raw_df['Frequency (Hz)'].iloc[n]]
+            line = [self.raw_df[self.data_names['freq']].iloc[n]]
             
             for i in range(self.num_meas_temps):
-                line += [self.raw_df["X' (emu/(Oe*mol))"][i*self.num_meas_freqs+n],
-                         self.raw_df["X'' (emu/(Oe*mol))"][i*self.num_meas_freqs+n]]
+                line += [self.raw_df[self.data_names['Xp']][i*self.num_meas_freqs+n],
+                         self.raw_df[self.data_names['Xpp']][i*self.num_meas_freqs+n]]
                 
             line.append('\n')
             line = ' '.join(str(e) for e in line)
@@ -468,7 +475,7 @@ class ACGui(QMainWindow):
         
     def fit_Xp_Xpp_w_ccfit(self):
         
-        if "X' (emu/(Oe*mol))" in self.raw_df.columns:
+        if self.data_names['Xp'] in self.raw_df.columns:
             working_directory = os.path.dirname(self.raw_df_origin)
             os.chdir(working_directory)
             self.write_file_for_ccfit()
@@ -531,6 +538,11 @@ line 10: INFO,f,<mass>mg""")
         elif "X'' (emu/(Oe*mol))" in self.raw_df.columns:
             # Don't add an element that is already there
             pass
+        elif "AC X'  (emu/Oe)" in self.raw_df.columns:
+            # Data was read from source where the column already exists.
+            # Update data names
+            self.data_names.update({'Xp': "AC X'  (emu/Oe)",
+                                    'Xpp': 'AC X" (emu/Oe)'})
         else:
             try:
                 sample_mass = float(self.sample_mass_inp.text())
@@ -543,8 +555,8 @@ line 10: INFO,f,<mass>mg""")
                 msg.setText('Could not read sample information')
                 msg.exec_()
             else:
-                H = self.raw_df['Amplitude (Oe)']
-                H0 = self.raw_df['Magnetic Field (Oe)']
+                H = self.raw_df[self.data_names['amplitude']]
+                H0 = self.raw_df[self.data_names['mag_field']]
                 Mp = self.raw_df["M' (emu)"]
                 Mpp = self.raw_df["M'' (emu)"]
                 
@@ -606,7 +618,7 @@ line 10: INFO,f,<mass>mg""")
     def plot_from_itemlist(self):
     
         self.treat_fit_plot.ax.clear()
-        plot_type = "X'' (emu/(Oe*mol))"
+        plot_type = self.data_names['Xp']
         
         for row in range(self.num_meas_temps):
             
@@ -614,12 +626,12 @@ line 10: INFO,f,<mass>mg""")
             itemdict = item.data(32)
             
             if itemdict['raw']:
-                self.treat_fit_plot.ax.plot(self.temp_subsets[row]['Frequency (Hz)'],
+                self.treat_fit_plot.ax.plot(self.temp_subsets[row][self.data_names['freq']],
                                             self.temp_subsets[row][plot_type],
                                             'ko')
             if itemdict['fit']:
-                self.treat_fit_plot.ax.plot(self.temp_subsets[row]['Frequency (Hz)'],
-                                            Xpp_(self.temp_subsets[row]['Frequency (Hz)'],
+                self.treat_fit_plot.ax.plot(self.temp_subsets[row][self.data_names['freq']],
+                                            Xpp_(self.temp_subsets[row][self.data_names['freq']],
                                                  self.raw_data_fit['ChiS'].iloc[row],
                                                  self.raw_data_fit['ChiT'].iloc[row],
                                                  self.raw_data_fit['Tau'].iloc[row],
@@ -647,7 +659,25 @@ line 10: INFO,f,<mass>mg""")
         self.treat_raw_plot.ax.set_ylabel(y_label)
         
         self.treat_raw_plot.canvas.draw()
+    
+    def update_data_names(self):
         
+        with open(self.ppms_data_file, 'r') as f:
+            f_content = f.read()
+            
+        VERSION_PATTERN = r'INFO,PPMS ACMS\s(II\s)*.*\s.*\s(?P<VERSION>.*)\sBuild\s(?P<BUILD>[1-9]{1,2}),APPNAME'
+        m = re.search(VERSION_PATTERN, f_content)
+        VERSION, BUILD = m.group('VERSION'), m.group('BUILD')
+        
+        if (VERSION, BUILD) == ('1.0.9', '14'):
+            self.data_names.update({'freq': 'Frequency (Hz)',
+                                    'amplitude': 'Amplitude (Oe)',
+                                    'mag_field': 'Magnetic Field (Oe)'})
+        elif (VERSION, BUILD) == ('1.0.8', '33'):
+            self.data_names.update({'freq': 'AC Frequency (Hz)',
+                                    'amplitude': 'AC Drive (Oe)',
+                                    'mag_field': 'Magnetic Field (Oe)'})
+                
     def load_ppms_data(self):
     
         starting_directory = os.getcwd()
@@ -658,17 +688,24 @@ line 10: INFO,f,<mass>mg""")
             pass
         else:
             self.ppms_data_file = filename
-        
         try:
+            with open(self.ppms_data_file, 'r') as f:
+                f_content = f.readlines()
+            for i, line in enumerate(f_content):
+                if '[Data]' in line:
+                    self.data_header_idx = i+1
+                    break
+            
             self.raw_df = pd.read_csv(filename,
-                                      header=20)
+                                      header=self.data_header_idx)
         except:
             pass
         else:
-            self.num_meas_freqs = len(set(self.raw_df['Frequency (Hz)']))
+            self.cleanup_loaded_ppms()
+            self.update_data_names()
+            self.num_meas_freqs = len(set(self.data_names['freq']))
             self.num_meas_temps = int(self.raw_df.shape[0]/self.num_meas_freqs)
             self.raw_df_origin = filename
-            self.cleanup_loaded_ppms()
             self.update_temp_subsets()
             self.update_meas_temps()
             self.update_analysis_combos()
@@ -679,7 +716,37 @@ line 10: INFO,f,<mass>mg""")
         for sub in self.temp_subsets:
             meas_temps.append(sub['Temperature (K)'].mean())
         self.meas_temps = np.array(meas_temps)
+    
+    #def cleanup_loaded_ppms(self):
+    #
+    #    headers = self.raw_df
+    #    
+    #    for h in headers:
+    #        if np.all(np.isnan(self.raw_df[h])):
+    #            self.raw_df.drop(h, axis=1, inplace=True)
+    
+    def cleanup_loaded_ppms(self):
         
+        rows_to_remove = []
+        # Removing instrument comment lines (for ACMS version 1.0.8, build 33)
+        for i, val in enumerate(self.raw_df['Comment']):
+            if not pd.isnull(val):
+                rows_to_remove.append(i-1)
+                rows_to_remove.append(i)
+        self.raw_df.drop(rows_to_remove, inplace=True)
+        
+        # Make sure that the rows are named continuously
+        old_indices = self.raw_df.index.values
+        new_indices = list(range(len(old_indices)))
+        self.raw_df.rename(index=dict(zip(old_indices, new_indices)),
+                           inplace=True)
+        
+        print(self.raw_df.index.values)
+        # Removing NaN-columns
+        for h in self.raw_df.columns:
+            if pd.isnull(self.raw_df[h]).all():
+                self.raw_df.drop(h, axis=1, inplace=True)
+    
     def update_temp_subsets(self):
         
         self.temp_subsets = []
@@ -694,14 +761,6 @@ line 10: INFO,f,<mass>mg""")
         
         self.analysis_y_combo.clear()
         self.analysis_y_combo.addItems(self.raw_df.columns)
-    
-    def cleanup_loaded_ppms(self):
-    
-        headers = self.raw_df
-        
-        for h in headers:
-            if np.all(np.isnan(self.raw_df[h])):
-                self.raw_df.drop(h, axis=1, inplace=True)
     
     def print_fitted_params(self):
         
@@ -1418,8 +1477,7 @@ class AboutDialog(QDialog):
         
         self.setLayout(self.layout)
         self.show()
-        
-           
+          
 if __name__ == '__main__':
     
     myappid = 'AC Processing v1.0'
