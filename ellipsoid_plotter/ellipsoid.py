@@ -51,10 +51,14 @@ def plot_ellipsoid(X, trans=[0,0,0], axes_in=None):
     
 if __name__=='__main__':
 
-    _vals = [2.64,7.07,2.44,-3.36,1.34,-3.41]
+    _vals = [1,1,1,-3.36,1.34,-3.41]
+    _vals = [1,1,1,0,0,0]
     t = [10,20,30]
     X = np.array([[_vals[0],_vals[5],_vals[4]],
                   [_vals[5],_vals[1],_vals[3]],
                   [_vals[4],_vals[3],_vals[2]]])
                   
-    _plot_ellipsoid(X, t)
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    plot_ellipsoid(X, t, axes_in=ax)
+    plt.show()

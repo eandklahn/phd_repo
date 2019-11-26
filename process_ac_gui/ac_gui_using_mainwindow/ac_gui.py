@@ -254,6 +254,16 @@ class ACGui(QMainWindow):
         self.data_ana_y_lo.addWidget(self.analysis_y_combo)
         self.raw_data_plot_lo.addLayout(self.data_ana_y_lo)
         
+        # Constructing a combobox for plotting fitted data
+        self.fitted_data_plot_header = QLabel('Fit data plotting')
+        self.fitted_data_plot_header.setFont(self.headline_font)
+        self.raw_data_plot_lo.addWidget(self.fitted_data_plot_header)
+        
+        self.fit_data_plot_combo = QComboBox()
+        self.fit_data_plot_combo.addItems(['ColeCole', 'FreqVSXpp'])
+        self.fit_data_plot_combo.currentIndexChanged.connect(self.plot_from_itemlist)
+        self.raw_data_plot_lo.addWidget(self.fit_data_plot_combo)
+        
         self.data_layout.addLayout(self.raw_data_plot_lo)
         
         ## Finalizing the data loading widget
@@ -598,52 +608,66 @@ line 10: INFO,f,<mass>mg""")
         self.plot_from_itemlist()
         self.treat_fit_plot.canvas.draw()
     
-    def update_raw_plot_status2(self):
-        # Old function which only checks/unchecks one box at a time
-        item = self.treat_raw_fit_list.selectedItems()[0]
-        itemdict = item.data(32)
-        w = FitResultPlotStatus(list_input=self.treat_raw_fit_list)
-        finished_value = w.exec_()
-        if not finished_value:
-            pass
-        else:
-            itemdict = {'temp': itemdict['temp'],
-                        'raw': w.raw_cb.isChecked(),
-                        'fit': w.fit_cb.isChecked()}
-            self.update_itemdict(item, itemdict)
-        
-        self.plot_from_itemlist()
-        self.treat_fit_plot.canvas.draw()
-    
     def plot_from_itemlist(self):
     
         self.treat_fit_plot.ax.clear()
-        plot_type = self.data_names['Xp']
+        plot_type = self.fit_data_plot_combo.currentText()
         
-        for row in range(self.num_meas_temps):
-            
-            item = self.treat_raw_fit_list.item(row)
-            itemdict = item.data(32)
-            
-            if itemdict['raw']:
-                self.treat_fit_plot.ax.plot(self.temp_subsets[row][self.data_names['freq']],
-                                            self.temp_subsets[row][plot_type],
-                                            'ko')
-            if itemdict['fit']:
-                self.treat_fit_plot.ax.plot(self.temp_subsets[row][self.data_names['freq']],
-                                            Xpp_(self.temp_subsets[row][self.data_names['freq']],
-                                                 self.raw_data_fit['ChiS'].iloc[row],
-                                                 self.raw_data_fit['ChiT'].iloc[row],
-                                                 self.raw_data_fit['Tau'].iloc[row],
-                                                 self.raw_data_fit['Alpha'].iloc[row]),
-                                            c=calcTcolor(self.meas_temps[row],
-                                                         self.meas_temps[0],
-                                                         self.meas_temps[-1]))
-                                                         
-        self.treat_fit_plot.ax.set_xscale('log')
-        self.treat_fit_plot.ax.set_xlabel('Frequency (Hz)')
-        self.treat_fit_plot.ax.set_ylabel(plot_type)
+        if plot_type == 'FreqVSXpp':
+            x_name = self.data_names['freq']
+            y_name = self.data_names['Xpp']
+            for row in range(self.num_meas_temps):
+                
+                item = self.treat_raw_fit_list.item(row)
+                itemdict = item.data(32)
+                
+                if itemdict['raw']:
+                    self.treat_fit_plot.ax.plot(self.temp_subsets[row][x_name],
+                                                self.temp_subsets[row][y_name],
+                                                'ko')
+                if itemdict['fit']:
+                    self.treat_fit_plot.ax.plot(self.temp_subsets[row][x_name],
+                                                Xpp_(self.temp_subsets[row][self.data_names['freq']],
+                                                    self.raw_data_fit['ChiS'].iloc[row],
+                                                    self.raw_data_fit['ChiT'].iloc[row],
+                                                    self.raw_data_fit['Tau'].iloc[row],
+                                                    self.raw_data_fit['Alpha'].iloc[row]),
+                                                c=calcTcolor(self.meas_temps[row],
+                                                            self.meas_temps[0],
+                                                            self.meas_temps[-1]))
+            self.treat_fit_plot.ax.set_xscale('log')
+            self.treat_fit_plot.ax.set_xlabel(x_name)
+            self.treat_fit_plot.ax.set_ylabel(y_name)
     
+        elif plot_type == 'ColeCole':
+            x_name = self.data_names['Xp']
+            y_name = self.data_names['Xpp']
+            for row in range(self.num_meas_temps):
+                
+                item = self.treat_raw_fit_list.item(row)
+                itemdict = item.data(32)
+                
+                if itemdict['raw']:
+                    self.treat_fit_plot.ax.plot(self.temp_subsets[row][x_name],
+                                               self.temp_subsets[row][y_name],
+                                               'ko')
+                if itemdict['fit']:
+                    self.treat_fit_plot.ax.plot(Xp_(self.temp_subsets[row][self.data_names['freq']],
+                                                    self.raw_data_fit['ChiS'].iloc[row],
+                                                    self.raw_data_fit['ChiT'].iloc[row],
+                                                    self.raw_data_fit['Tau'].iloc[row],
+                                                    self.raw_data_fit['Alpha'].iloc[row]),
+                                                Xpp_(self.temp_subsets[row][self.data_names['freq']],
+                                                    self.raw_data_fit['ChiS'].iloc[row],
+                                                    self.raw_data_fit['ChiT'].iloc[row],
+                                                    self.raw_data_fit['Tau'].iloc[row],
+                                                    self.raw_data_fit['Alpha'].iloc[row]),
+                                                c=calcTcolor(self.meas_temps[row],
+                                                            self.meas_temps[0],
+                                                            self.meas_temps[-1]))
+            self.treat_fit_plot.ax.set_xlabel(x_name)
+            self.treat_fit_plot.ax.set_ylabel(y_name)
+                                                            
     def plot_from_combo(self):
         
         self.treat_raw_plot.ax.clear()
@@ -703,8 +727,11 @@ line 10: INFO,f,<mass>mg""")
         else:
             self.cleanup_loaded_ppms()
             self.update_data_names()
-            self.num_meas_freqs = len(set(self.data_names['freq']))
+            self.num_meas_freqs = len(set(self.raw_df[self.data_names['freq']]))
+            print('freqs', self.num_meas_freqs)
+            print(set(self.raw_df[self.data_names['freq']]))
             self.num_meas_temps = int(self.raw_df.shape[0]/self.num_meas_freqs)
+            print('temps', self.num_meas_temps)
             self.raw_df_origin = filename
             self.update_temp_subsets()
             self.update_meas_temps()
@@ -716,14 +743,6 @@ line 10: INFO,f,<mass>mg""")
         for sub in self.temp_subsets:
             meas_temps.append(sub['Temperature (K)'].mean())
         self.meas_temps = np.array(meas_temps)
-    
-    #def cleanup_loaded_ppms(self):
-    #
-    #    headers = self.raw_df
-    #    
-    #    for h in headers:
-    #        if np.all(np.isnan(self.raw_df[h])):
-    #            self.raw_df.drop(h, axis=1, inplace=True)
     
     def cleanup_loaded_ppms(self):
         
@@ -741,7 +760,6 @@ line 10: INFO,f,<mass>mg""")
         self.raw_df.rename(index=dict(zip(old_indices, new_indices)),
                            inplace=True)
         
-        print(self.raw_df.index.values)
         # Removing NaN-columns
         for h in self.raw_df.columns:
             if pd.isnull(self.raw_df[h]).all():

@@ -21,73 +21,11 @@ def _split_val_sigma(val):
         sig = 0
 
     return (float(val), float(sig))
-        
-class Atom:
-
-    def __init__(self, label, X, dX, Utype, Uiso, dUiso, occ, docc, U=None, dU=None, element=None):
-        """
-        Class used to represent an atom in a crystal structure
-        
-        ...
-        
-        Attributes
-        ----------
-        label : string
-            the label that the atom has in a structure.
-        element : string
-            the element of the atom
-        X : array
-            position of atom in unit cell in fractional coordinates 
-        dX : array
-            sigmas on the atom position
-        Utype : string
-            whether vibrations are given as Uiso or Uani
-        U : array/float
-            values for the vibrational parameters. Saved according to Utype
-        dU : array/float
-            sigmas on vibrational parameters
-        
-        Methods
-        ----------
-        _get_element
-            Reads the element of the atom from the given label
-        """
-        
-        self.lbl = label
-        self.element = self._get_element()
-        self.X = X
-        self.dX = dX
-        self.Utype = Utype
-        self.Uiso = Uiso
-        self.dUiso = dUiso
-        self.U = U
-        self.dU = dU
-        self.occ = occ
-        self.docc = docc
-        
-        # Magnetic stuff
-        self._is_magnetic = False
-        self.charge = 0
-        self.ion = ''
-        self._type_magnetic_form = 'j0'
-        self._angular_L = 0
-        self._angular_S = 0
-        self._angular_J = 0
-        
     
-    def _get_element(self):
-        s = self.lbl
-        e = ''
-        n = 0
-        while True:
-            c = s[n]
-            if c.isalpha():
-                e+=c
-                n+=1
-            else:
-                break
-        return e
-        
+    
+    
+    
+    
 class crystalStructure:
 
     def __init__(self, input, blockname=None):
@@ -689,6 +627,78 @@ class crystalStructure:
             print(atom.lbl)
 
 
+class Atom:
+
+    def __init__(self, label, X, dX, Utype, Uiso, dUiso, occ, docc, U=None, dU=None, element=None):
+        """
+        Class used to represent an atom in a crystal structure
+        
+        ...
+        
+        Attributes
+        ----------
+        label : string
+            the label that the atom has in a structure.
+        element : string
+            the element of the atom
+        X : array
+            position of atom in unit cell in fractional coordinates 
+        dX : array
+            sigmas on the atom position
+        Utype : string
+            whether vibrations are given as Uiso or Uani
+        U : array/float
+            values for the vibrational parameters. Saved according to Utype
+        dU : array/float
+            sigmas on vibrational parameters
+        
+        Methods
+        ----------
+        _get_element
+            Reads the element of the atom from the given label
+        """
+        
+        self.lbl = label
+        self.element = self._get_element()
+        self.X = X
+        self.dX = dX
+        self.Utype = Utype
+        self.Uiso = Uiso
+        self.dUiso = dUiso
+        self.U = U
+        self.dU = dU
+        self.occ = occ
+        self.docc = docc
+        
+        # Magnetic stuff
+        self._is_magnetic = False
+        self.charge = 0
+        self.ion = ''
+        self._type_magnetic_form = 'j0'
+        self._angular_L = 0
+        self._angular_S = 0
+        self._angular_J = 0
+        
+    
+    def _get_element(self):
+        s = self.lbl
+        e = ''
+        n = 0
+        while True:
+            c = s[n]
+            if c.isalpha():
+                e+=c
+                n+=1
+            else:
+                break
+        return e
+    
+    @property
+    def magX_tensor(self):
+        return np.array([[self._magX[0], self._magX[5], self._magX[4]],
+                         [self._magX[5], self._magX[1], self._magX[3]],
+                         [self._magX[4], self._magX[3], self._magX[2]]])
+    
 if __name__ == '__main__':    
 
     from calculateCHILSQRs import readCHILSQ_FRs
