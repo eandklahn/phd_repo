@@ -199,3 +199,79 @@ def calculate_B_matrix(a,b,c,A,B,C):
                   [  0,   0, B33]])
     
     return B
+
+def calculate_Euler_matrix(t1,t2,t3):
+    """
+    Calculates the coordinate transformation matrix associated with
+    the Euler angles t1, t2 and t3.
+    Reference: Giacovazzo, p. 78
+    
+    t1, t2, t3 : floats
+                 angles in degrees
+    
+    Returns
+    ----------
+    R : array
+        A 3x3-array corresponding to the transformation matrix
+    """
+    
+    t1, t2, t3 = np.radians(t1), np.radians(t2), np.radians(t3)
+    
+    c = np.cos
+    s = np.sin
+
+    R_Eu = np.array([[ c(t1)*c(t3)-s(t1)*c(t2)*s(t3),  s(t1)*c(t3)+c(t1)*c(t2)*s(t3), s(t2)*s(t3)],
+                     [-s(t1)*c(t2)*c(t3)-c(t1)*s(t3), -s(t1)*s(t3)+c(t1)*c(t2)*c(t3), s(t2)*c(t3)],
+                     [                   s(t1)*s(t2),                   -c(t1)*s(t2),       c(t2)]])
+                     
+    return R_Eu
+    
+def transform_property(M, Q):
+    """
+    Transforms the property according to the rule in Giacovazzo,
+    that Q'=M*Q*M.T, when M is the basis transformation from
+    A to A'.
+    
+    M : array
+        Basis transformation matrix from A to A'
+        
+    Q : array
+        Property given in the A-basis
+    
+    Returns
+    ----------
+    Q_transformed : array
+                    A 3x3-array giving the property Q in the A'-basis
+    """
+    
+    Q_transformed = np.matmul(M, np.matmul(Q, M.T))
+    
+    return Q_transformed
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

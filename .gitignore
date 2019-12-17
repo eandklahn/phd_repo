@@ -18,4 +18,7 @@ git_help.txt
 *.png 
 *.lis 
 *.pyc 
-*.ext 
+*.ext
+*.pdf
+*.docx
+*.dat

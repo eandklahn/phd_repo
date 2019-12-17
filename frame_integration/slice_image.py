@@ -4,7 +4,7 @@ import matplotlib.patches as ptc
 import numpy as np
 import os
 from scipy.ndimage.filters import gaussian_filter
-from skimage.feature import canny
+#from skimage.feature import canny
 from scipy.ndimage import measurements
 import crystallography as cryst
 
@@ -382,9 +382,7 @@ def get_real_peak_region(filepath_up, filepath_dw, sigma=3, shape_in=None):
     
     return padded_peak_region
     
-def get_flipping_ratio(filepath_up, filepath_dw, sigma=3, shape_in=None):
-    
-    make_figure = False
+def get_flipping_ratio(filepath_up, filepath_dw, sigma=3, shape_in=None, make_figure=False):
     
     image_up, metadata = load_image_from_scan(filepath_up)
     image_dw = load_image_from_scan(filepath_dw)[0]
@@ -405,7 +403,7 @@ def get_flipping_ratio(filepath_up, filepath_dw, sigma=3, shape_in=None):
             max_val = max(image_up.max(), image_dw.max())
             
             f, ax = plt.subplots(ncols=2, nrows=3)
-            ax[0,0].imshow(image_up, vmin=min_val, vmax=max_val)
+            #ax[0,0].imshow(image_up, vmin=min_val, vmax=max_val)
             ax[0,1].imshow(image_dw, vmin=min_val, vmax=max_val)
             ax[1,0].imshow(np.where(padded_peak_region, image_up, 0),
                         vmin=min_val,
@@ -415,7 +413,7 @@ def get_flipping_ratio(filepath_up, filepath_dw, sigma=3, shape_in=None):
                         vmax=max_val)
             ax[2,0].imshow(padded_peak_region)
             ax[2,1].imshow(background)
-            f.tight_layout()
+            f.colorbar(ax[0,0].imshow(image_up, vmin=min_val, vmax=max_val), ax=ax.ravel().tolist())
             plt.show()
         
         i_up, s_up = get_intensity_from_image(image_up,
@@ -525,7 +523,7 @@ def process_scan(folder, exp, scan, file_out, mag_field, pol, radius=10):
     reflections = []
     for i, t in enumerate(files):
         print('Extracting image data from image {}/{}'.format(i+1, len(files)), end='\r')
-        reflections.append(get_flipping_ratio(t[0], t[1], shape_in=fill_shape))        
+        reflections.append(get_flipping_ratio(t[0], t[1], shape_in=fill_shape, make_figure=True))        
     print()
     
     with open(file_out, 'w') as f:
@@ -563,8 +561,8 @@ if __name__ == '__main__':
     mag_field = 0.78
     polarisation = 0.94
     
-    file_directory = '''C:\\Users\\Emil\\Documents\\Uddannelse\\PhD\\pnd_susceptibility\\CoCl2(tu)4\\HFIR, E18\\Data download\\HB3A\\exp715\\Datafiles\\'''
-    save_to_file = '''C:\\Users\\Emil\\Desktop\\rfl{}.ext'''.format(scan)
+    file_directory = '''C:\\Users\\emilk\\Documents\\Uddannelse\\PhD\\pnd_susceptibility\\CoCl2(tu)4\\HFIR, E18\\Data download\\HB3A\\exp715\\Datafiles\\'''
+    save_to_file = '''C:\\Users\\emilk\\Desktop\\rfl{}.ext'''.format(scan)
     
     process_scan(file_directory,
                  exp,

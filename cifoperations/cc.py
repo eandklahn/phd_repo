@@ -289,9 +289,12 @@ class crystalStructure:
         
         return float(angle)
         
-    def _write_to_xyz(self):
+    def _write_to_xyz(self, filename=None):
     
-        with open(os.path.splitext(self.cifFile)[0]+'.xyz', 'w') as f:
+        if filename is None:
+            filename = os.path.splitext(self.cifFile)[0]+'.xyz'
+        
+        with open(filename, 'w') as f:
             for atom in self.atoms:
                 XYZ = np.matmul(self.XYZ_Mct_ABC, atom.X)[0]
                 f.write('{:6s}{:>12.6f}{:>12.6f}{:>12.6f}\n'.format(atom.lbl,
