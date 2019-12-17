@@ -540,7 +540,8 @@ line 10: INFO,f,<mass>mg""")
     
     def calculate_Xp_and_Xpp(self):
         
-        self.Xd_capsule, self.Xd_film
+        print(self.data_names['VERSION'])
+        print(self.data_names['BUILD'])
         
         if self.raw_df is None:
             # Don't do the calculation, if there is nothing to calculate on
@@ -701,6 +702,9 @@ line 10: INFO,f,<mass>mg""")
             self.data_names.update({'freq': 'AC Frequency (Hz)',
                                     'amplitude': 'AC Drive (Oe)',
                                     'mag_field': 'Magnetic Field (Oe)'})
+        
+        self.data_names.update({'VERSION': VERSION,
+                                'BUILD': BUILD})
                 
     def load_ppms_data(self):
     
