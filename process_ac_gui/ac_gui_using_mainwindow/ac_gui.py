@@ -540,47 +540,62 @@ line 10: INFO,f,<mass>mg""")
     
     def calculate_Xp_and_Xpp(self):
         
-        # THIS IS ONLY IN THE TESTING BRANCH
+        VERSION = self.data_names['VERSION']
+        BUILD = self.data_names['BUILD']
         
-        print(self.data_names['VERSION'])
-        print(self.data_names['BUILD'])
-        
+        # Checking if there is any data to retrieve
         if self.raw_df is None:
-            # Don't do the calculation, if there is nothing to calculate on
-            pass
-        elif "X'' (emu/(Oe*mol))" in self.raw_df.columns:
-            # Don't add an element that is already there
-            pass
-        elif "AC X'  (emu/Oe)" in self.raw_df.columns:
-            # Data was read from source where the column already exists.
-            # Update data names
-            self.data_names.update({'Xp': "AC X'  (emu/Oe)",
-                                    'Xpp': 'AC X" (emu/Oe)'})
-        else:
-            try:
-                sample_mass = float(self.sample_mass_inp.text())
-                film_mass = float(self.film_mass_inp.text())
-                molar_mass = float(self.molar_mass_inp.text())
-                Xd_sample = float(self.sample_xd_inp.text())
-            except ValueError as error:
-                msg = QMessageBox()
-                msg.setWindowTitle('Error')
-                msg.setText('Could not read sample information')
-                msg.exec_()
-            else:
-                H = self.raw_df[self.data_names['amplitude']]
-                H0 = self.raw_df[self.data_names['mag_field']]
-                Mp = self.raw_df["M' (emu)"]
-                Mpp = self.raw_df["M'' (emu)"]
-                
-                Xp = (Mp - self.Xd_capsule*H - self.Xd_film*film_mass*H)*molar_mass/(sample_mass*H) - Xd_sample*molar_mass
-                Xpp = Mpp/(sample_mass*H)*molar_mass
-                
-                Xp_idx = self.raw_df.columns.get_loc("M' (emu)")+1
-                self.raw_df.insert(Xp_idx, column="X' (emu/(Oe*mol))", value=Xp)
-                
-                Xpp_idx = self.raw_df.columns.get_loc("M'' (emu)")+1
-                self.raw_df.insert(Xpp_idx, column="X'' (emu/(Oe*mol))", value=Xpp)
+            return
+        
+        # Trying to collect data from input boxes in GUI
+        try:
+            sample_mass = float(self.sample_mass_inp.text())
+            film_mass = float(self.film_mass_inp.text())
+            molar_mass = float(self.molar_mass_inp.text())
+            Xd_sample = float(self.sample_xd_inp.text())
+        except ValueError as error:
+            msg = QMessageBox()
+            msg.setWindowTitle('Error')
+            msg.setText('Could not read sample information')
+            msg.exec_()
+            return
+        
+        # Reading in the drive field (H) and the static field (H0)
+        H = self.raw_df[self.data_names['amplitude']]
+        H0 = self.raw_df[self.data_names['mag_field']]
+        
+        # Determining data source and reading in-phase and out-of-phase info
+        if (VERSION, BUILD)==('1.0.8', '33'):
+            # Info is printed as intrument corrected susceptibilities
+            Xp_old = self.raw_df["AC X'  (emu/Oe)"]
+            Xpp_old = self.raw_df['AC X"  (emu/Oe)']
+            
+            # Calculating indices for inserting corrected susceptibilities
+            Xp_idx = self.raw_df.columns.get_loc("AC X'  (emu/Oe)")+1
+            Xpp_idx = self.raw_df.columns.get_loc('AC X"  (emu/Oe)')+1
+            
+            Xp = 
+            Xpp = Xpp_old/sample_mass*molar_mass
+            
+            """Mangler at beregne korrektionen med den nye datafil"""
+        
+        elif (VERSION, BUILD)==('1.0.9', '14'):
+            # Info is printed as magnetization values
+            Mp = self.raw_df["M' (emu)"]
+            Mpp = self.raw_df["M'' (emu)"]
+            
+            # Calculating indices for inserting corrected susceptibilities
+            Xp_idx = self.raw_df.columns.get_loc("M' (emu)")+1
+            Xpp_idx = self.raw_df.columns.get_loc("M'' (emu)")+1
+            
+            Xp = (Mp - self.Xd_capsule*H - self.Xd_film*film_mass*H)*molar_mass/(sample_mass*H) - Xd_sample*molar_mass
+            Xpp = Mpp/(sample_mass*H)*molar_mass
+        
+        """DONT CHANGE THIS"""
+        self.data_names.update({'Xp': "X' (emu/(Oe*mol))",
+                                'Xpp': "X'' (emu/(Oe*mol))"})
+        self.raw_df.insert(Xp_idx, column="X' (emu/(Oe*mol))", value=Xp)
+        self.raw_df.insert(Xpp_idx, column="X'' (emu/(Oe*mol))", value=Xpp)
         
         self.update_temp_subsets()
         self.update_analysis_combos()
