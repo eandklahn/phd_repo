@@ -12,6 +12,7 @@ molarMass.py
 myMaths.py 
 readWebsite.py 
 git_help.txt
+.commitmessage
 
 # File types
 *.cif 
@@ -22,3 +23,4 @@ git_help.txt
 *.pdf
 *.docx
 *.dat
+
