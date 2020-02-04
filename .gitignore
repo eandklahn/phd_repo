@@ -12,6 +12,7 @@ molarMass.py
 myMaths.py 
 readWebsite.py 
 git_help.txt
+.gitignore
 
 # File types
 *.cif 

@@ -32,3 +32,5 @@ R = 8.3144598 # +/- 4.8e-06 ; molar gas constant [unit: J mol^-1 K^-1]
 
 c = 299792458.0 # +/- exact) ; speed of light in vacuum [unit: m s^-1]
 
+F = 9.6485e4 # +/- exact) ; Faraday constant [unit: C mol^-1]
+

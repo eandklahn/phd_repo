@@ -13,7 +13,7 @@ from matplotlib.ticker import MaxNLocator
 from PyQt5.QtGui import QIcon, QFont
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QWidget, QApplication, QPushButton, QGridLayout, QLabel, QComboBox, QStackedWidget, QSlider,
-                             QDoubleSpinBox, QFormLayout, QCheckBox, QSpinBox, QVBoxLayout, QMessageBox, QFileDialog)
+                             QDoubleSpinBox, QFormLayout, QCheckBox, QSpinBox, QVBoxLayout, QHBoxLayout, QMessageBox, QFileDialog)
 if is_pyqt5():
     from matplotlib.backends.backend_qt5agg import (FigureCanvas, NavigationToolbar2QT as NavigationToolbar)
     
@@ -25,56 +25,81 @@ class DataViz(QWidget):
         super().__init__()
         
         self.initUI()
-        
+    
     def initUI(self):
         
-        # Opening a QWidget with a grid layout
-        grid = QGridLayout()
+        # Opening a QWidget with a box layout
+        LO = QVBoxLayout()
+        
+        # Adding the layout for file-related stuff
+        fileLO = QHBoxLayout()
+        
+        openFilebtn = QPushButton('&Open')
+        openFilebtn.clicked.connect(self.openFile)
+        fileLO.addWidget(openFilebtn)
         
         self.currentFilelbl = QLabel()
-        grid.addWidget(self.currentFilelbl,0,0)
+        fileLO.addWidget(self.currentFilelbl)
         
-        self.noOfFrameslbl = QLabel()
-        grid.addWidget(self.noOfFrameslbl,0,1)
+        fileLO.addStretch()
+        LO.addLayout(fileLO)
         
-        openFilebtn = QPushButton('Open')
-        openFilebtn.clicked.connect(self.openFile)
-        grid.addWidget(openFilebtn,1,0)
+        # Adding the layout for frame-related stuff
+        frameLO = QHBoxLayout()
         
-        self.showFrameInfobtn = QPushButton('Frame info')
+        self.showFrameInfobtn = QPushButton('&Frame info')
         self.showFrameInfobtn.clicked.connect(self.displayFrameInfo)
-        grid.addWidget(self.showFrameInfobtn,1,1)
+        frameLO.addWidget(self.showFrameInfobtn)
         
         self.frameNumberBox = QSpinBox()
         self.frameNumberBox.setMinimum(1)
         self.frameNumberBox.valueChanged.connect(self.plotImage)
-        grid.addWidget(self.frameNumberBox,2,0)
+        frameLO.addWidget(self.frameNumberBox)
         
+        self.noOfFrameslbl = QLabel()
+        frameLO.addWidget(self.noOfFrameslbl)
+        
+        frameLO.addStretch()
+        LO.addLayout(frameLO)
+        
+        # Adding the layout for image-related stuff
+        
+        sliderLO = QHBoxLayout()
         self.minvalueSlider = QSlider(Qt.Horizontal)
-        self.minvalueSlider.valueChanged.connect(self.plotImage)
-        grid.addWidget(self.minvalueSlider,10,0)
+        self.minvalueSlider.sliderMoved.connect(self.plotImage)
+        sliderLO.addWidget(self.minvalueSlider)
         
         self.maxvalueSlider = QSlider(Qt.Horizontal)
-        self.maxvalueSlider.valueChanged.connect(self.plotImage)
-        grid.addWidget(self.maxvalueSlider,10,1)
+        self.maxvalueSlider.sliderMoved.connect(self.plotImage)
+        sliderLO.addWidget(self.maxvalueSlider)
         
-        self.colormapBox = QComboBox()
-        self.colormapBox.addItems(['hot', 'viridis', 'inferno', 'plasma', 'Greys'])
-        self.colormapBox.currentIndexChanged.connect(self.plotImage)
-        grid.addWidget(self.colormapBox,2,1)
-        
-        self.areaDetectorImages = Figure(figsize=(5,3))
+        self.areaDetectorImages = Figure()
         self.dynamic_canvas = FigureCanvas(self.areaDetectorImages)
         self.toolbar = NavigationToolbar(self.dynamic_canvas, self)
         
         self.axU = self.areaDetectorImages.add_subplot(121)
         self.axD = self.areaDetectorImages.add_subplot(122)
         
+        # Containers for the objects that are returned by the imshow command
         self.imageUobject = None
         self.imageDobject = None
         
-        grid.addWidget(self.dynamic_canvas,4,0,5,3)
-        grid.addWidget(self.toolbar,9,0,1,1)
+        LO.addWidget(self.dynamic_canvas)
+        
+        # Adding controls for the plotting
+        controlsLO = QHBoxLayout()
+        self.colormapBox = QComboBox()
+        self.colormapBox.addItems(['hot', 'viridis', 'inferno', 'plasma', 'Greys'])
+        self.colormapBox.currentIndexChanged.connect(self.plotImage)
+        
+        controlsLO.addWidget(self.toolbar)
+        controlsLO.addWidget(self.colormapBox)
+        
+        controlsLO.addStretch()
+        LO.addLayout(controlsLO)
+        
+        LO.addLayout(sliderLO)
+        LO.addStretch()
         
         self.path = None
         self.tree = None
@@ -84,7 +109,7 @@ class DataViz(QWidget):
         self.dataDArray = None
         
         # Setting layout and opening the widget
-        self.setLayout(grid)
+        self.setLayout(LO)
         self.show()
     
     def displayFrameInfo(self):
@@ -118,7 +143,6 @@ class DataViz(QWidget):
     def openFile(self):
         
         self.path = QFileDialog.getOpenFileName()[0]
-        print(self.path)
         
         try:
             
@@ -128,8 +152,10 @@ class DataViz(QWidget):
             self.xmlInfo = self.readXMLinfo(self.root)
             
             self.frameNumberBox.setMaximum(len(self.root)-self.xmlInfo['framestartIndex'])
+            self.maxvalueSlider.setValue(self.maxvalueSlider.maximum())
+            
             self.currentFilelbl.setText(self.path)
-            self.noOfFrameslbl.setText('{}'.format(len(self.root)-self.xmlInfo['framestartIndex']))
+            self.noOfFrameslbl.setText('/{}'.format(len(self.root)-self.xmlInfo['framestartIndex']))
             
         except (FileNotFoundError, xml.etree.ElementTree.ParseError) as e:
 
@@ -144,6 +170,7 @@ class DataViz(QWidget):
         
         finally:
             self.frameNumberBox.setValue(1)
+            self.plotImage()
             
     def plotImage(self):
         
@@ -178,9 +205,10 @@ class DataViz(QWidget):
                                                             cmap=self.colormapBox.currentText())
             
             self.dynamic_canvas.draw()
-        
+            
         except TypeError:
             None
+            
         
     def readXMLinfo(self, root):
 
@@ -198,12 +226,24 @@ class DataViz(QWidget):
         
         return xmlInfo
     
+    def get_minvalueSlider(self):
+        
+        v = self.minvalueSlider.value()
+        
+        return v
+    
+    def get_maxvalueSlider(self):
+        
+        v = self.maxvalueSlider.value()
+        
+        return v
+    
     def keyPressEvent(self, event):
         
-        if event.key() == QtCore.Qt.Key_Q:
+        if event.key() == QtCore.Qt.Key_O:
             N = self.frameNumberBox.value()
             self.frameNumberBox.setValue(N-1)
-        elif event.key() == QtCore.Qt.Key_W:
+        elif event.key() == QtCore.Qt.Key_P:
             N = self.frameNumberBox.value()
             self.frameNumberBox.setValue(N+1)
             event.accept()
