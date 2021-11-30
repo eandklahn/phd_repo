@@ -17,9 +17,12 @@ def effHalfSpinG(X, sX, T):
     sg: uncertainty on the easy-axis g-value
     """
     
-    g = np.sqrt(4*SC.kB*X*T/SC.muB)
+    muB = pc['Bohr magneton'][0]
+    kB = sc.k
     
-    sg = np.sqrt(SC.kB*T/(SC.muB*X))*sX
+    g = np.sqrt(4*kB*X*T/muB)
+    
+    sg = np.sqrt(kB*T/(muB*X))*sX
     
     return (g,sg)
 
@@ -55,11 +58,14 @@ def brillouinPlot(J, L, S, maxB, maxM, T, minB=1e-6, increments=100):
     maxM: saturation magnetization
     T: temperature (in Kelvin)"""
     
+    muB = muB = pc['Bohr magneton'][0]
+    kB = sc.k
+    
     #An array of magnetic field values (unit: Tesla)
     B = np.linspace(minB, maxB, increments)
     
     #The array to use in the Brillouin function
-    y = landeG(J, S, L)*SC.muB*J/(SC.kB*T)*B
+    y = landeG(S, L, J)*muB*J/(kB*T)*B
     
     #Magnetization array calculated with the saturation magnetization and the Brillouin function
     M = maxM*brillouin(J,y)
@@ -75,6 +81,9 @@ def XT_product(J, g=-pc['electron g factor'][0]):
     XT = Na*g**2*muB**2/(3*kB)*J*(J+1)
     
     return (XT, 'J T^-2 K mol^-1')
+    
+def mag_moment(S, g=-pc['electron g factor'][0]):
 
+    return g*np.sqrt(S*(S+1))
 
 

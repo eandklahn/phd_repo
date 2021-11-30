@@ -5,6 +5,7 @@ from cifoperations import formFactors as ff
 from cifoperations import crystallographyDatabase as CD
 from cifoperations.symmetry import _read_symmop
 from cifoperations import mj0, mj2, mj4, mj4
+from crystallography import theta_from_d
 
 def _split_val_sigma(val):
     """Takes a string of the format '#1(#2)' and returns a tuple of two floats, where
@@ -21,9 +22,6 @@ def _split_val_sigma(val):
         sig = 0
 
     return (float(val), float(sig))
-    
-    
-    
     
     
 class crystalStructure:
@@ -233,7 +231,11 @@ class crystalStructure:
                     atom._magX[4], atom._dmagX[4] = _split_val_sigma(_chi_atom_13[index])
                     atom._magX[5], atom._dmagX[5] = _split_val_sigma(_chi_atom_12[index])
                     atom._magX_determined_by = _chi_atom_determination[index]
-        
+    
+    @property
+    def params(self):
+        return [self.a, self.b, self.c, self.alpha, self.beta, self.gamma]
+    
     def distance_between(self, atom1, atom2):
         
         try:
@@ -246,7 +248,13 @@ class crystalStructure:
             print('{} does not exist in the structure'.format(ke))
             return None
     
-    def angle_between(self, atom1, atom2, atom3):
+    def length_of_vector(self, v):
+    
+        x = np.matmul(v, np.matmul(self.G, v.T))
+        
+        return np.sqrt(float(x))
+    
+    def angle_between(self, atom1, atom2, atom3=None):
         """
         Computes the angle between the bonds
         B1: atom2 --> atom1
@@ -264,25 +272,35 @@ class crystalStructure:
                      'b': np.array([0,1,0]),
                      'c': np.array([0,0,1])}
         
-        try:
-            atom1 = self.__dict__.get(atom1)
-            atom2 = self.__dict__.get(atom2)
-            B1 = atom1.X - atom2.X
-            B1_norm = self.distance_between(atom1.lbl, atom2.lbl)
-        except KeyError as ke:
-            print('{} is not in the structure.'.format(ke))
-            return None
+        if isinstance(atom1, str) and isinstance(atom2, str):
+            try:
+                atom1 = self.__dict__.get(atom1)
+                atom2 = self.__dict__.get(atom2)
+                B1 = atom1.X - atom2.X
+                B1_norm = self.distance_between(atom1.lbl, atom2.lbl)
+            except KeyError as ke:
+                print('{} is not in the structure.'.format(ke))
+                return None
+            
+            if atom3 in axis_dict:
+                """Calculate angle between B1 and unit cell axis"""
+                B2 = axis_dict.get(atom3)
+                B2_norm = self.__dict__.get(atom3)
+            elif self.__dict__.get(atom3) is not None:
+                """Calculate angle between 3 atoms"""
+                atom3 = self.__dict__.get(atom3)
+                B2 = atom3.X - atom2.X
+                B2_norm = self.distance_between(atom2.lbl, atom3.lbl)
+            else:
+                print('{} is not in the structure.'.format(atom3))
+                return None
         
-        if atom3 in axis_dict:
-            B2 = axis_dict.get(atom3)
-            B2_norm = self.__dict__.get(atom3)
-        elif self.__dict__.get(atom3) is not None:
-            atom3 = self.__dict__.get(atom3)
-            B2 = atom3.X - atom2.X
-            B2_norm = self.distance_between(atom2.lbl, atom3.lbl)
-        else:
-            print('{} is not in the structure.'.format(atom3))
-            return None
+        elif isinstance(atom1, np.ndarray) and isinstance(atom2, np.ndarray):
+            B1 = atom1
+            B1_norm = self.length_of_vector(atom1)
+            B2 = atom2.T
+            B2_norm = self.length_of_vector(atom2)
+            print(B1, B2)
         
         cos_angle = np.matmul(B1, np.matmul(self.G, B2.T).T)/(B1_norm*B2_norm)
         angle = np.degrees(np.arccos(cos_angle))
@@ -297,7 +315,7 @@ class crystalStructure:
         with open(filename, 'w') as f:
             for atom in self.atoms:
                 XYZ = np.matmul(self.XYZ_Mct_ABC, atom.X)[0]
-                f.write('{:6s}{:>12.6f}{:>12.6f}{:>12.6f}\n'.format(atom.lbl,
+                f.write('{:6s}{:>12.6f}{:>12.6f}{:>12.6f}\n'.format(atom.element,
                                                               XYZ[0,0],
                                                               XYZ[0,1],
                                                               XYZ[0,2]))
@@ -449,6 +467,13 @@ class crystalStructure:
     def _Q_magnitude(self,H):
         
         return 2*np.pi/self._calculate_d_spacing(H)
+        
+    def _calculate_tht(self, H, L):
+        """
+        L: wavelength in angström
+        """
+        
+        return theta_from_d(self._calculate_d_spacing(H), L)
     
     def _calculate_d_spacing(self, H):
         """
@@ -570,9 +595,9 @@ class crystalStructure:
                 _type_formfactor = atom._type_magnetic_form
                 
                 f = 0
-                if _type_formfactor is 'j0':
+                if _type_formfactor == 'j0':
                     f = ff.magF_(atom.ion, s, L=atom._angular_L, S=atom._angular_S, J=atom._angular_J)
-                elif _type_formfactor is 'dipole':
+                elif _type_formfactor == 'dipole':
                     f = ff.magF_(atom.ion, s, L=atom._angular_L, S=atom._angular_S, J=atom._angular_J, type='dipole')
                     
                 chi_ijk = np.array([[atom._magX[0], atom._magX[5], atom._magX[4]],
@@ -688,9 +713,10 @@ class Atom:
         e = ''
         n = 0
         while True:
-            c = s[n]
-            if c.isalpha():
-                e+=c
+            if n>(len(s)-1):
+                break
+            elif s[n].isalpha():
+                e+=s[n]
                 n+=1
             else:
                 break

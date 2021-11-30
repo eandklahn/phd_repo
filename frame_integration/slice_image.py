@@ -7,6 +7,7 @@ from scipy.ndimage.filters import gaussian_filter
 #from skimage.feature import canny
 from scipy.ndimage import measurements
 import crystallography as cryst
+from skimage import feature
 
 def read_ub_from_scan(filename):
     """
@@ -270,6 +271,19 @@ def get_common_peak(image_up, image_dw, sigma_in=1):
     
     peak_boolean = np.logical_or(peak_boolean_up, peak_boolean_dw)
     
+    #edges = np.array(peak_boolean_up, dtype=np.float32)
+    #edges = feature.canny(edges)
+    #
+    #fig, ax = plt.subplots(nrows=3, ncols=2)
+    #ax[0,0].imshow(image_up)
+    #ax[0,1].imshow(image_dw)
+    #ax[1,0].imshow(peak_boolean_up)
+    #ax[1,1].imshow(peak_boolean_dw)
+    #ax[2,0].imshow(peak_boolean)
+    #ax[2,1].imshow(edges)
+    
+    plt.show()
+    
     return peak_boolean
 
 def remove_border_patches2(background, padded_peak_region):
@@ -388,9 +402,23 @@ def get_flipping_ratio(filepath_up, filepath_dw, sigma=3, shape_in=None, make_fi
     image_dw = load_image_from_scan(filepath_dw)[0]
     
     peak_region_boolean = get_common_peak(image_up, image_dw, sigma_in=sigma)
+    #peak_border_boolean = feature.canny(peak_region_boolean)
+    
     peak_border_boolean = get_peak_border(peak_region_boolean)
+    
+    #fig, ax = plt.subplots(ncols=2)
+    
+    #ax[0].imshow(peak_border_boolean)
+    #ax[1].imshow(feature.canny(peak_region_boolean))
+    #plt.show()
+    
     peak_padding = add_padding_w_circles(peak_border_boolean, shape_in)
     padded_peak_region = np.logical_or(peak_padding, peak_region_boolean)
+    
+    #fig, ax = plt.subplots()
+    #ax.imshow(padded_peak_region)
+    #plt.show()
+    
     padded_peak_region = punch_out_border_and_small_patches(padded_peak_region, shape_in)
     background = make_too_large_background(padded_peak_region)
     background, padded_peak_region = remove_background_border_patches(background, padded_peak_region, shape_in)
@@ -399,22 +427,35 @@ def get_flipping_ratio(filepath_up, filepath_dw, sigma=3, shape_in=None, make_fi
         return 0, 0, metadata
     else:
         if make_figure:
+            # THIS IS THE ORIGINAL WAY OF PLOTTING
             min_val = min(image_up.min(), image_dw.min())
             max_val = max(image_up.max(), image_dw.max())
+            #
+            #f, ax = plt.subplots(ncols=2, nrows=3)
+            #ax[0,1].imshow(image_dw, vmin=min_val, vmax=max_val)
+            #ax[1,0].imshow(np.where(padded_peak_region, image_up, 0),
+            #            vmin=min_val,
+            #            vmax=max_val)
+            #ax[1,1].imshow(np.where(padded_peak_region, image_dw, 0),
+            #            vmin=min_val,
+            #            vmax=max_val)
+            #ax[2,0].imshow(padded_peak_region)
+            #ax[2,1].imshow(background)
+            #f.colorbar(ax[0,0].imshow(image_up, vmin=min_val, vmax=max_val), ax=ax.ravel().tolist())
             
-            f, ax = plt.subplots(ncols=2, nrows=3)
-            #ax[0,0].imshow(image_up, vmin=min_val, vmax=max_val)
-            ax[0,1].imshow(image_dw, vmin=min_val, vmax=max_val)
-            ax[1,0].imshow(np.where(padded_peak_region, image_up, 0),
-                        vmin=min_val,
-                        vmax=max_val)
-            ax[1,1].imshow(np.where(padded_peak_region, image_dw, 0),
-                        vmin=min_val,
-                        vmax=max_val)
-            ax[2,0].imshow(padded_peak_region)
-            ax[2,1].imshow(background)
-            f.colorbar(ax[0,0].imshow(image_up, vmin=min_val, vmax=max_val), ax=ax.ravel().tolist())
+            # THIS IS USED FOR MY THESIS
+            fig1, ax1 = plt.subplots()
+            ax1.imshow(np.where(peak_border_boolean, max_val, image_up), vmin=min_val, vmax=max_val)
+            fig2, ax2 = plt.subplots()
+            ax2.imshow(np.where(peak_border_boolean, max_val, image_dw), vmin=min_val, vmax=max_val)
+            fig3, ax3 = plt.subplots()
+            ax3.imshow(padded_peak_region)
+            fig4, ax4 = plt.subplots()
+            ax4.imshow(background)
+            
+            print(metadata['h'], metadata['k'], metadata['l'])
             plt.show()
+
         
         i_up, s_up = get_intensity_from_image(image_up,
                                             padded_peak_region,
@@ -423,6 +464,8 @@ def get_flipping_ratio(filepath_up, filepath_dw, sigma=3, shape_in=None, make_fi
                                             padded_peak_region,
                                             background)
         fr, s_fr = calculate_fr_error(i_up, s_up, i_dw, s_dw)
+        
+        print(fr, s_fr, i_up, s_up, i_dw, s_dw)
         
         if i_up<0 or i_dw<0:
             metadata['rejection'] = 'negative intensity'
@@ -557,7 +600,7 @@ if __name__ == '__main__':
         
     # Experiment variables
     exp = 715
-    scan = 113 # or 73
+    scan = 73 # or 113
     mag_field = 0.78
     polarisation = 0.94
     

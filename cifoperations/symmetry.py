@@ -44,8 +44,8 @@ def _read_coordinate(s):
 
 def _read_symmop(symm):
     
-    symm = [x.strip() for x in symm.split(',')]
-
+    symm = [x.strip() for x in symm.lower().split(',')]
+    
     R, t = np.zeros((3,3)), np.zeros(3)
     
     for n in range(3):

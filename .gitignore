@@ -2,6 +2,7 @@
 projectData
 molmag_overview
 **__pycache__
+process_ac_gui/ac_gui/
 
 # Files
 binary.py 

@@ -17,7 +17,7 @@ def magF_(ion, s, L=None, S=None, J=None, type='j0'):
         g = landeG(L,S,J)
         j2 = _calculate_exponential_approx(ion, s, type='j2')
         # Use expression from McPhase manual for magnetic form factor
-        f = j0+(2-g)/g*j2
+        f = j0+(g-2)/g*j2
         return f
     else:
         return None

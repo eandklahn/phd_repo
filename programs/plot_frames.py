@@ -140,8 +140,8 @@ class SixT2Visual(QMainWindow):
         #plt.plot(x, yD, label='Down')
         #plt.plot(x, yU, label='Up')
         
-        plt.plot([np.sum(d['IntensityUp'][ymin:ymax, xmin:xmax]) for d in self.frame_data])
-        plt.plot([np.sum(d['IntensityDown'][ymin:ymax, xmin:xmax]) for d in self.frame_data])
+        plt.plot([np.max(d['IntensityUp'][ymin:ymax, xmin:xmax]) for d in self.frame_data])
+        plt.plot([np.max(d['IntensityDown'][ymin:ymax, xmin:xmax]) for d in self.frame_data])
         plt.show()
     
     def find_file(self):
@@ -283,7 +283,7 @@ class RunFrameVideo(QThread):
         while self.run_video:
             
             self.new_frame.emit()
-            time.sleep(0.5)
+            time.sleep(0.3)
     
 if __name__ == '__main__':
 

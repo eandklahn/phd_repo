@@ -77,6 +77,7 @@ class ACGui(QMainWindow):
         
         self.raw_df = None
         self.raw_df_origin = None
+        self.meas_info = {}
         self.data_header_idx = 0
         self.num_meas_freqs = 0
         self.num_meas_temps = 0
@@ -712,6 +713,9 @@ line 10: INFO,f,<mass>mg""")
         filename_info = QFileDialog().getOpenFileName(self, 'Open file', starting_directory)
         filename = filename_info[0]
         
+        header_start = 0
+        header_lines = []
+        
         if filename == '':
             pass
         else:
@@ -720,14 +724,19 @@ line 10: INFO,f,<mass>mg""")
             with open(self.ppms_data_file, 'r') as f:
                 f_content = f.readlines()
             for i, line in enumerate(f_content):
+                if '[Header]' in line:
+                    header_start = i+1
                 if '[Data]' in line:
                     self.data_header_idx = i+1
+                    header_lines = f_content[header_start:self.data_header_idx]
                     break
             
             self.raw_df = pd.read_csv(filename,
-                                      header=self.data_header_idx)
-        except:
+                                      header=self.data_header_idx,
+                                      engine='python')
+        except Exception as e:
             pass
+            print(e)
         else:
             self.cleanup_loaded_ppms()
             self.update_data_names()

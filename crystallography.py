@@ -107,7 +107,7 @@ def q_from_hkl(h,k,l,L,params):
     
     return q
 
-def calculate_reciprocal_lattice(a,b,c,A,B,C):
+def calculate_reciprocal_lattice(a,b,c,A,B,C,tol=1e-10):
     """
     Calculates reciprocal lattice parameters based
     on the given direct lattice parameters
@@ -126,15 +126,30 @@ def calculate_reciprocal_lattice(a,b,c,A,B,C):
     """
     
     G = calculate_G_matrix(a,b,c,A,B,C)
-    V = np.sqrt(np.linalg.det(G))
+    G_ = np.linalg.inv(G)
     
-    a_ = b*c*np.sin(np.radians(A))/V
-    b_ = a*c*np.sin(np.radians(B))/V
-    c_ = a*b*np.sin(np.radians(C))/V
+    a_ = np.sqrt(G_[0,0])
+    b_ = np.sqrt(G_[1,1])
+    c_ = np.sqrt(G_[2,2])
     
-    A_ = np.degrees(np.arcsin(V/(a*b*c*np.sin(np.radians(B))*np.sin(np.radians(C)))))
-    B_ = np.degrees(np.arcsin(V/(a*b*c*np.sin(np.radians(A))*np.sin(np.radians(C)))))
-    C_ = np.degrees(np.arcsin(V/(a*b*c*np.sin(np.radians(A))*np.sin(np.radians(B)))))
+    cosA_ = G_[1,2]/(b_*c_)
+    A_ = np.degrees(np.arccos(cosA_))
+    
+    cosB_ = G_[0,2]/(a_*c_)
+    B_ = np.degrees(np.arccos(cosB_))
+    
+    cosC_ = G_[0,1]/(a_*b_)
+    C_ = np.degrees(np.arccos(cosC_))
+    
+    # Old approach
+    #V = np.sqrt(np.linalg.det(G))
+    #a_ = b*c*np.sin(np.radians(A))/V
+    #b_ = a*c*np.sin(np.radians(B))/V
+    #c_ = a*b*np.sin(np.radians(C))/V
+    #
+    #A_ = np.degrees(np.arcsin(V/(a*b*c*np.sin(np.radians(B))*np.sin(np.radians(C)))))
+    #B_ = np.degrees(np.arcsin(V/(a*b*c*np.sin(np.radians(A))*np.sin(np.radians(C)))))
+    #C_ = np.degrees(np.arcsin(V/(a*b*c*np.sin(np.radians(A))*np.sin(np.radians(B)))))
     
     return (a_, b_, c_, A_, B_, C_)
     
@@ -244,12 +259,27 @@ def transform_property(M, Q):
                     A 3x3-array giving the property Q in the A'-basis
     """
     
-    Q_transformed = np.matmul(M, np.matmul(Q, M.T))
+    Q_transformed = np.matmul(M, np.matmul(Q, np.transpose(M)))
     
     return Q_transformed
 
+def dot_product(v1, v2, G=np.identity(3)):
+    
+    return float(np.matmul(v1.T, np.matmul(G, v2)))
 
-
+def vector_norm(v, G=np.identity(3)):
+    
+    norm_sqrd = dot_product(v, v, G)
+    
+    return float(np.sqrt(norm_sqrd))
+  
+def angle_between(v1, v2, G=np.identity(3)):
+    
+    cosangle = dot_product(v1, v2, G)/(vector_norm(v1, G)*vector_norm(v2, G))
+    angle = np.arccos(cosangle)
+    angle = np.degrees(angle)
+    
+    return float(angle)
 
 
 

@@ -17,7 +17,7 @@ t_max = 20
 fps = 24
 
 # Field values
-tau = 6
+tau = 1
 w_h = tau
 print('{:.2f} secs to make a full turn'.format(2*np.pi/w_h))
 
